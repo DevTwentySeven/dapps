@@ -1,9 +1,12 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Solana Wallet Toolkit — Auto RPC (Logs embaixo)</title>
+<title>Solana Wallet Toolkit</title>
+<meta name="description" content="dApps Tools" />
+<meta name="author" content="Dev Twenty Seven" />
+<link rel="icon" href="assets/icons/27-mini-icon.png" type="image/png">
 <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/dist/buffer.min.js"></script>
 <script>if(typeof window.Buffer==='undefined')window.Buffer=buffer.Buffer;</script>
 <style>
@@ -63,8 +66,8 @@ button{
 <body>
 <div class="app">
   <div class="card">
-    <h2>Solana Wallet Toolkit — Auto RPC</h2>
-    <div class="small">RPC ativo: <span id="rpcActive">—</span></div>
+    <h2>Solana Wallet Toolkit</h2>
+    <div class="small">RPC: <span id="rpcActive">—</span></div>
     <div style="margin-top:8px">
       <select id="rpcSelect">
         <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
@@ -76,21 +79,29 @@ button{
       <input id="customRpc" placeholder="RPC custom..." style="display:none;width:100%;margin-top:6px">
     </div>
     <div style="margin-top:10px">
-      <button id="btnConnect">Conectar Phantom</button>
-      <button id="btnDisconnect" class="btn-ghost" style="display:none">Desconectar</button>
+      <button id="btnConnect">Conect Phantom Wallet</button>
+      <button id="btnDisconnect" class="btn-ghost" style="display:none">Disconnect</button>
     </div>
     <div style="margin-top:10px">
-      <div>Endereço:</div>
+      <div>Address:</div>
       <div id="walletAddr" class="small">—</div>
-      <div>Saldo:</div>
+      <div>Balance Sol:</div>
       <div id="walletBalance" class="small">—</div>
+      <div>Portifolio Sol:</div>
+      <div id="" class="small">—</div>
     </div>
     <div style="margin-top:10px">
-      <input id="sendTo" placeholder="Destinatário (base58)" style="width:100%;margin-bottom:6px">
-      <input id="sendAmount" placeholder="Quantidade (SOL)" style="width:100%;margin-bottom:6px">
-      <input id="sendMemo" placeholder="Memo opcional" style="width:100%;margin-bottom:6px">
-      <button id="btnSend">Enviar SOL</button>
+      <input id="" placeholder="Token CA (11111111111111111111111111111111) SOL" style="width:100%;margin-bottom:6px">
+      <input id="sendTo" placeholder="Receiver (base58)" style="width:100%;margin-bottom:6px">
+      <input id="sendAmount" placeholder="Ammount (SOL)" style="width:100%;margin-bottom:6px">
+      <input id="sendMemo" placeholder="Memo" style="width:100%;margin-bottom:6px">
+      <button id="btnSend">Transfer</button>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>Portifolio</h3>
+
   </div>
 
   <div class="card">
@@ -136,12 +147,12 @@ async function connectRpc(rpc){
     connection=new Connection(rpc,{commitment:'confirmed'});
     await connection.getVersion();
     rpcActive.textContent=rpc;
-    log('INFO','Conectado RPC: '+rpc);
+    log('INFO','Connected to RPC: '+rpc);
     return true;
   }catch(e){
-    log('ERROR','RPC falhou '+rpc+' '+e.message);
+    log('ERROR','RPC fail '+rpc+' '+e.message);
     if(e.message.includes('403')||rpc.includes('mainnet-beta')){
-      log('INFO','Fallback para PublicNode (CORS bloqueado)');
+      log('INFO','Fallback for PublicNode (CORS blocked)');
       const fb='https://solana-rpc.publicnode.com';
       connection=new Connection(fb,{commitment:'confirmed'});
       await connection.getVersion();
@@ -154,14 +165,14 @@ async function connectRpc(rpc){
 
 async function connectWallet(){
   try{
-    if(!window.solana||!window.solana.isPhantom){alert('Phantom não detectado');return;}
+    if(!window.solana||!window.solana.isPhantom){alert('Phantom not detected');return;}
     wallet=window.solana;
     await connectRpc(getRpc());
     const res=await wallet.connect({onlyIfTrusted:false});
     pubkey=res.publicKey;
     walletAddr.textContent=pubkey.toBase58();
     btnConnect.style.display='none';btnDisconnect.style.display='inline-block';
-    log('WALLET','Conectado: '+pubkey.toBase58());
+    log('WALLET','Connected: '+pubkey.toBase58());
     await refreshData();
   }catch(e){log('ERROR',e.message);}
 }
@@ -171,8 +182,8 @@ async function updateBalance(){
   try{
     const bal=await connection.getBalance(pubkey,'confirmed');
     walletBalance.textContent=(bal/LAMPORTS_PER_SOL).toFixed(6)+' SOL';
-    log('BALANCE','Saldo '+walletBalance.textContent);
-  }catch(e){log('ERROR','Erro saldo '+e.message);}
+    log('BALANCE','balance '+walletBalance.textContent);
+  }catch(e){log('ERROR','Error balance '+e.message);}
 }
 
 async function refreshData(){
@@ -184,7 +195,7 @@ function disconnectWallet(){
   wallet=null;pubkey=null;
   walletAddr.textContent='—';walletBalance.textContent='—';
   btnConnect.style.display='inline-block';btnDisconnect.style.display='none';
-  log('WALLET','Desconectado');
+  log('WALLET','Disconnected');
 }
 
 async function loadTxs(){
@@ -194,17 +205,17 @@ async function loadTxs(){
     for(const s of sigs){
       await connection.getTransaction(s.signature,{commitment:'confirmed',maxSupportedTransactionVersion:0});
     }
-    log('INFO','Txs carregadas: '+sigs.length);
+    log('INFO','Txs load: '+sigs.length);
   }catch(e){
-    log('ERROR','Erro txs '+e.message);
+    log('ERROR','Error txs '+e.message);
   }
 }
 
 async function sendSol(){
-  if(!wallet||!pubkey){alert('Conecte Phantom');return;}
+  if(!wallet||!pubkey){alert('Connect Phantom');return;}
   const destStr=sendTo.value.trim();
   const amount=parseFloat(sendAmount.value.trim());
-  if(!destStr||!amount){alert('Preencha destino e valor');return;}
+  if(!destStr||!amount){alert("Receiver and Ammount can't be null");return;}
   try{
     const dest=new PublicKey(destStr);
     const lamports=Math.round(amount*LAMPORTS_PER_SOL);
@@ -216,21 +227,31 @@ async function sendSol(){
       tx.add(new TransactionInstruction({keys:[],programId:new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),data:new TextEncoder().encode(memoText)}));
     }
     const signed=await wallet.signAndSendTransaction(tx);
-    log('TX','TX enviada '+signed.signature);
-    await refreshData();
-  }catch(e){log('ERROR','Erro enviar '+e.message);}
+    log('TX','TX send '+signed.signature);
+    await connection.confirmTransaction(
+      {signature:signed.signature,blockhash:blockhash.blockhash,lastValidBlockHeight:blockhash.lastValidBlockHeight},
+      'finalized'
+    );
+    log('INFO','Tx done, refreshing balance...');
+    setTimeout(()=>refreshData(),3000);
+  }catch(e){log('ERROR','Fail to send '+e.message);}
 }
+
+// Atualiza saldo/txs a cada 15s
+setInterval(()=>{
+  if(pubkey&&connection)refreshData();
+},15000);
 
 rpcSelect.onchange=async()=>{
   customRpc.style.display=rpcSelect.value==='custom'?'block':'none';
   const rpc=getRpc();
-  log('USER','RPC alterado: '+rpc);
+  log('USER','RPC changed: '+rpc);
   const ok=await connectRpc(rpc);
   if(ok){await refreshData();}
 };
 customRpc.onchange=async()=>{
   const rpc=getRpc();
-  log('USER','Custom RPC alterado: '+rpc);
+  log('USER','Custom RPC changed: '+rpc);
   const ok=await connectRpc(rpc);
   if(ok){await refreshData();}
 };
@@ -240,7 +261,7 @@ btnDisconnect.onclick=disconnectWallet;
 btnSend.onclick=sendSol;
 
 (async()=>{
-  log('INIT','Inicializando Toolkit Auto RPC (Logs embaixo)');
+  log('INIT','Initiating Toolkit Auto Refresh');
   await connectRpc(getRpc());
 })();
 </script>
