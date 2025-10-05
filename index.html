@@ -1,436 +1,248 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Wallet Toolkit</title>
-    <style>
-        /* Dark mode elegant styling with teal accents */
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1200px;
-            width: 100%;
-        }
-        .panel {
-            background-color: #1e1e1e;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-        }
-        h2 {
-            color: #00b4d8; /* Teal */
-        }
-        button {
-            background-color: #00b4d8;
-            color: #121212;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px 0;
-        }
-        button:hover {
-            background-color: #48cae4;
-        }
-        input, select {
-            background-color: #2c2c2c;
-            color: #ffffff;
-            border: 1px solid #00b4d8;
-            padding: 8px;
-            border-radius: 5px;
-            margin: 5px 0;
-            width: 100%;
-        }
-        #logs {
-            background-color: #000000;
-            height: 200px;
-            overflow-y: auto;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-        .hidden {
-            display: none;
-        }
-        .address {
-            cursor: pointer;
-            color: #00b4d8;
-        }
-        .loading {
-            color: #ffd166;
-            font-style: italic;
-        }
-        /* Responsive for mobile */
-        @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Solana Wallet Toolkit — Auto RPC (Logs embaixo)</title>
+<script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/dist/buffer.min.js"></script>
+<script>if(typeof window.Buffer==='undefined')window.Buffer=buffer.Buffer;</script>
+<style>
+:root{
+  --bg:#071224;--card:#0b1a2a;--muted:#8fb3c4;--accent:#2bd4b2;--accent-2:#3aa0ff;
+  --danger:#ff6b6b;--glass:rgba(255,255,255,0.03);
+}
+body{
+  background:linear-gradient(180deg,#041222 0%,#071b2c 100%);
+  color:#dbeef7;
+  font-family:Inter,ui-sans-serif;
+  padding:16px;
+  margin:0;
+}
+.app{
+  max-width:900px;
+  margin:auto;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+.card{
+  background:var(--glass);
+  border-radius:12px;
+  padding:14px;
+  border:1px solid rgba(255,255,255,0.05);
+}
+button{
+  background:var(--accent);
+  border:none;
+  border-radius:8px;
+  padding:8px 12px;
+  cursor:pointer;
+  font-weight:600;
+  color:#022223;
+}
+.btn-ghost{
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.06);
+  color:var(--muted)
+}
+.small{font-size:13px;color:var(--muted)}
+.logs-list{
+  max-height:340px;
+  overflow:auto;
+  background:rgba(255,255,255,0.02);
+  border-radius:8px;
+  padding:8px;
+}
+.log-item{
+  padding:6px;
+  border-bottom:1px solid rgba(255,255,255,0.03)
+}
+#rpcActive{color:var(--accent);font-weight:600;}
+</style>
 </head>
 <body>
-    <h1>Solana Wallet Toolkit</h1>
-    <div class="container">
-        <!-- Panel 1: Wallet and RPC -->
-        <div class="panel">
-            <h2>Wallet e RPC</h2>
-            <select id="rpc-select">
-                <option value="mainnet">Mainnet (api.mainnet-beta.solana.com)</option>
-                <option value="publicnode">PublicNode (solana-rpc.publicnode.com)</option>
-                <option value="devnet">Devnet (api.devnet.solana.com)</option>
-                <option value="testnet">Testnet (api.testnet.solana.com)</option>
-                <option value="helius">Helius</option>
-                <option value="ankr">Ankr</option>
-                <option value="custom">Custom RPC</option>
-            </select>
-            <input id="custom-rpc" class="hidden" placeholder="Enter custom RPC URL">
-            <input id="helius-key" class="hidden" placeholder="Helius API Key" value="">
-            <input id="ankr-key" class="hidden" placeholder="Ankr API Key" value="">
-            <button id="connect-rpc">Conectar RPC</button>
-            <p id="rpc-status">RPC Status: Desconectado</p>
-            <button id="connect-wallet">Conectar Phantom</button>
-            <button id="disconnect-wallet" class="hidden">Desconectar</button>
-            <p id="wallet-address">Endereço: Não conectado <span class="loading hidden"> (Sincronizando...)</span></p>
-            <p id="sol-balance">Saldo SOL: 0 (USD: 0)</p>
-            <p id="sol-price">Preço SOL/USD: Carregando...</p>
-            <button id="refresh-manual">Atualizar Manualmente</button>
-        </div>
-
-        <!-- Panel 2: Tokens and Transactions -->
-        <div class="panel">
-            <h2>Tokens SPL</h2>
-            <ul id="tokens-list"></ul>
-            <h2>Transações Recentes</h2>
-            <ul id="txs-list"></ul>
-        </div>
-
-        <!-- Panel 3: Send SOL, Logs and Actions -->
-        <div class="panel">
-            <h2>Enviar SOL</h2>
-            <input id="recipient" placeholder="Endereço do destinatário (base58)">
-            <input id="amount" type="number" placeholder="Quantidade em SOL">
-            <input id="memo" placeholder="Memo opcional">
-            <button id="send-sol">Enviar SOL</button>
-            <h2>Logs</h2>
-            <div id="logs"></div>
-            <button id="clear-logs">Limpar Logs</button>
-            <button id="export-logs">Exportar Logs</button>
-        </div>
+<div class="app">
+  <div class="card">
+    <h2>Solana Wallet Toolkit — Auto RPC</h2>
+    <div class="small">RPC ativo: <span id="rpcActive">—</span></div>
+    <div style="margin-top:8px">
+      <select id="rpcSelect">
+        <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
+        <option value="https://solana-rpc.publicnode.com" selected>PublicNode</option>
+        <option value="https://api.devnet.solana.com">Devnet</option>
+        <option value="https://api.testnet.solana.com">Testnet</option>
+        <option value="custom">Custom...</option>
+      </select>
+      <input id="customRpc" placeholder="RPC custom..." style="display:none;width:100%;margin-top:6px">
     </div>
+    <div style="margin-top:10px">
+      <button id="btnConnect">Conectar Phantom</button>
+      <button id="btnDisconnect" class="btn-ghost" style="display:none">Desconectar</button>
+    </div>
+    <div style="margin-top:10px">
+      <div>Endereço:</div>
+      <div id="walletAddr" class="small">—</div>
+      <div>Saldo:</div>
+      <div id="walletBalance" class="small">—</div>
+    </div>
+    <div style="margin-top:10px">
+      <input id="sendTo" placeholder="Destinatário (base58)" style="width:100%;margin-bottom:6px">
+      <input id="sendAmount" placeholder="Quantidade (SOL)" style="width:100%;margin-bottom:6px">
+      <input id="sendMemo" placeholder="Memo opcional" style="width:100%;margin-bottom:6px">
+      <button id="btnSend">Enviar SOL</button>
+    </div>
+  </div>
 
-    <!-- Polyfill for Buffer (required for web3.js in browser) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
+  <div class="card">
+    <h3>Logs</h3>
+    <div class="logs-list" id="logsList"></div>
+  </div>
+</div>
 
-    <script type="module">
-        import {
-            Connection,
-            Keypair,
-            PublicKey,
-            SystemProgram,
-            Transaction,
-            LAMPORTS_PER_SOL,
-            getParsedTokenAccountsByOwner, // Incorrect, it's connection.getParsedTokenAccountsByOwner
-            TOKEN_PROGRAM_ID,
-            MemoProgram
-        } from 'https://esm.sh/@solana/web3.js@1.95.3';
+<script type="module">
+import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction, LAMPORTS_PER_SOL } from 'https://esm.sh/@solana/web3.js@1.95.3';
 
-        // Make Buffer global for compatibility
-        window.Buffer = buffer.Buffer;
+const btnConnect=document.getElementById('btnConnect');
+const btnDisconnect=document.getElementById('btnDisconnect');
+const walletAddr=document.getElementById('walletAddr');
+const walletBalance=document.getElementById('walletBalance');
+const logsList=document.getElementById('logsList');
+const rpcSelect=document.getElementById('rpcSelect');
+const customRpc=document.getElementById('customRpc');
+const rpcActive=document.getElementById('rpcActive');
+const sendTo=document.getElementById('sendTo');
+const sendAmount=document.getElementById('sendAmount');
+const sendMemo=document.getElementById('sendMemo');
+const btnSend=document.getElementById('btnSend');
 
-        // Global variables
-        let connection = null;
-        let publicKey = null;
-        let solPrice = 0;
-        let logs = [];
-        let autoUpdateInterval = null;
-        const LOG_MAX = 150;
-        const RPC_MAP = {
-            mainnet: 'https://api.mainnet-beta.solana.com',
-            publicnode: 'https://solana-rpc.publicnode.com',
-            devnet: 'https://api.devnet.solana.com',
-            testnet: 'https://api.testnet.solana.com',
-            helius: '',
-            ankr: '',
-            custom: ''
-        };
-        const fallbackOrder = ['mainnet', 'publicnode', 'helius', 'ankr']; // Only mainnet fallbacks
+let connection=null,wallet=null,pubkey=null,logs=[];
+function log(level,msg){
+  const t=new Date().toISOString();
+  logs.unshift({t,level,msg});
+  if(logs.length>200)logs=logs.slice(0,200);
+  const d=document.createElement('div');
+  d.className='log-item';
+  d.textContent=`${t} [${level}] ${msg}`;
+  logsList.prepend(d);
+  console.log(`[${level}]`,msg);
+}
+function getRpc(){
+  if(rpcSelect.value==='custom')return customRpc.value.trim()||'https://solana-rpc.publicnode.com';
+  return rpcSelect.value;
+}
 
-        // Function to push logs (with level and message)
-        function pushLog(level, msg) {
-            const timestamp = new Date().toLocaleString('pt-BR');
-            const logEntry = `[${timestamp}] [${level}] ${msg}`;
-            logs.push(logEntry);
-            if (logs.length > LOG_MAX) logs.shift();
-            console.log(logEntry);
-            document.getElementById('logs').innerText = logs.join('\n');
-            document.getElementById('logs').scrollTop = document.getElementById('logs').scrollHeight;
-        }
+async function connectRpc(rpc){
+  try{
+    connection=new Connection(rpc,{commitment:'confirmed'});
+    await connection.getVersion();
+    rpcActive.textContent=rpc;
+    log('INFO','Conectado RPC: '+rpc);
+    return true;
+  }catch(e){
+    log('ERROR','RPC falhou '+rpc+' '+e.message);
+    if(e.message.includes('403')||rpc.includes('mainnet-beta')){
+      log('INFO','Fallback para PublicNode (CORS bloqueado)');
+      const fb='https://solana-rpc.publicnode.com';
+      connection=new Connection(fb,{commitment:'confirmed'});
+      await connection.getVersion();
+      rpcActive.textContent=fb;
+      return true;
+    }
+    return false;
+  }
+}
 
-        // Fetch SOL price from CoinGecko
-        async function fetchPrice() {
-            try {
-                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-                const data = await response.json();
-                solPrice = data.solana.usd;
-                document.getElementById('sol-price').innerText = `Preço SOL/USD: $${solPrice.toFixed(2)}`;
-                pushLog('PRICE', `SOL price updated to $${solPrice.toFixed(2)}`);
-            } catch (error) {
-                pushLog('ERROR', `Failed to fetch SOL price: ${error.message}`);
-            }
-        }
+async function connectWallet(){
+  try{
+    if(!window.solana||!window.solana.isPhantom){alert('Phantom não detectado');return;}
+    wallet=window.solana;
+    await connectRpc(getRpc());
+    const res=await wallet.connect({onlyIfTrusted:false});
+    pubkey=res.publicKey;
+    walletAddr.textContent=pubkey.toBase58();
+    btnConnect.style.display='none';btnDisconnect.style.display='inline-block';
+    log('WALLET','Conectado: '+pubkey.toBase58());
+    await refreshData();
+  }catch(e){log('ERROR',e.message);}
+}
 
-        // Try to connect to RPC with fallback
-        async function tryConnectRpc(selected) {
-            let rpcUrl = RPC_MAP[selected];
-            if (selected === 'helius') {
-                const key = localStorage.getItem('heliusKey') || '';
-                if (!key) return pushLog('ERROR', 'Helius key not provided');
-                rpcUrl = `https://mainnet.helius-rpc.com/?api-key=${key}`;
-            } else if (selected === 'ankr') {
-                const key = localStorage.getItem('ankrKey') || '';
-                if (!key) return pushLog('ERROR', 'Ankr key not provided');
-                rpcUrl = `https://rpc.ankr.com/solana/${key}`;
-            } else if (selected === 'custom') {
-                rpcUrl = document.getElementById('custom-rpc').value;
-                if (!rpcUrl) return pushLog('ERROR', 'Custom RPC URL not provided');
-            }
+async function updateBalance(){
+  if(!connection||!pubkey)return;
+  try{
+    const bal=await connection.getBalance(pubkey,'confirmed');
+    walletBalance.textContent=(bal/LAMPORTS_PER_SOL).toFixed(6)+' SOL';
+    log('BALANCE','Saldo '+walletBalance.textContent);
+  }catch(e){log('ERROR','Erro saldo '+e.message);}
+}
 
-            pushLog('INIT', `Trying RPC: ${selected} (${rpcUrl})`);
-            try {
-                connection = new Connection(rpcUrl, 'confirmed');
-                const version = await connection.getVersion();
-                document.getElementById('rpc-status').innerText = `RPC Status: Conectado (${selected}) v${version['solana-core']}`;
-                pushLog('INIT', `RPC connected: ${selected}`);
-                return true;
-            } catch (error) {
-                pushLog('ERROR', `RPC ${selected} failed: ${error.message}`);
-                return false;
-            }
-        }
+async function refreshData(){
+  if(pubkey){await updateBalance();await loadTxs();}
+}
 
-        // Connect to selected RPC with fallback logic
-        async function connectRpc() {
-            const selected = document.getElementById('rpc-select').value;
-            let success = await tryConnectRpc(selected);
-            if (!success && fallbackOrder.includes(selected)) {
-                for (let fallback of fallbackOrder) {
-                    if (fallback !== selected) {
-                        success = await tryConnectRpc(fallback);
-                        if (success) {
-                            document.getElementById('rpc-select').value = fallback;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (!success) {
-                document.getElementById('rpc-status').innerText = 'RPC Status: Falha ao conectar';
-            }
-        }
+function disconnectWallet(){
+  try{if(wallet)wallet.disconnect();}catch(e){}
+  wallet=null;pubkey=null;
+  walletAddr.textContent='—';walletBalance.textContent='—';
+  btnConnect.style.display='inline-block';btnDisconnect.style.display='none';
+  log('WALLET','Desconectado');
+}
 
-        // Update balance
-        async function updateBalance() {
-            if (!publicKey || !connection) return;
-            showLoading(true);
-            try {
-                const balance = await connection.getBalance(publicKey);
-                const sol = balance / LAMPORTS_PER_SOL;
-                const usd = (sol * solPrice).toFixed(2);
-                document.getElementById('sol-balance').innerText = `Saldo SOL: ${sol.toFixed(4)} (USD: $${usd})`;
-                pushLog('BALANCE', `Balance updated: ${sol.toFixed(4)} SOL`);
-            } catch (error) {
-                pushLog('ERROR', `Failed to update balance: ${error.message}`);
-            }
-            showLoading(false);
-        }
+async function loadTxs(){
+  if(!connection||!pubkey)return;
+  try{
+    const sigs=await connection.getSignaturesForAddress(pubkey,{limit:5});
+    for(const s of sigs){
+      await connection.getTransaction(s.signature,{commitment:'confirmed',maxSupportedTransactionVersion:0});
+    }
+    log('INFO','Txs carregadas: '+sigs.length);
+  }catch(e){
+    log('ERROR','Erro txs '+e.message);
+  }
+}
 
-        // List SPL tokens
-        async function listTokens() {
-            if (!publicKey || !connection) return;
-            const list = document.getElementById('tokens-list');
-            list.innerHTML = '';
-            try {
-                const { value } = await connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_PROGRAM_ID });
-                value.forEach(({ account }) => {
-                    const { data: { parsed: { info } } } = account;
-                    if (info.tokenAmount.uiAmount > 0) {
-                        const li = document.createElement('li');
-                        li.innerText = `Mint: ${info.mint} | Amount: ${info.tokenAmount.uiAmount}`;
-                        list.appendChild(li);
-                    }
-                });
-                pushLog('WALLET', 'Tokens list updated');
-            } catch (error) {
-                pushLog('ERROR', `Failed to list tokens: ${error.message}`);
-            }
-        }
+async function sendSol(){
+  if(!wallet||!pubkey){alert('Conecte Phantom');return;}
+  const destStr=sendTo.value.trim();
+  const amount=parseFloat(sendAmount.value.trim());
+  if(!destStr||!amount){alert('Preencha destino e valor');return;}
+  try{
+    const dest=new PublicKey(destStr);
+    const lamports=Math.round(amount*LAMPORTS_PER_SOL);
+    const blockhash=await connection.getLatestBlockhash('confirmed');
+    const tx=new Transaction({recentBlockhash:blockhash.blockhash,feePayer:pubkey});
+    tx.add(SystemProgram.transfer({fromPubkey:pubkey,toPubkey:dest,lamports}));
+    const memoText=sendMemo.value.trim();
+    if(memoText){
+      tx.add(new TransactionInstruction({keys:[],programId:new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),data:new TextEncoder().encode(memoText)}));
+    }
+    const signed=await wallet.signAndSendTransaction(tx);
+    log('TX','TX enviada '+signed.signature);
+    await refreshData();
+  }catch(e){log('ERROR','Erro enviar '+e.message);}
+}
 
-        // Load recent transactions
-        async function loadTxs() {
-            if (!publicKey || !connection) return;
-            const list = document.getElementById('txs-list');
-            list.innerHTML = '';
-            try {
-                const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 20 });
-                for (let sig of signatures) {
-                    const tx = await connection.getParsedTransaction(sig.signature, { maxSupportedTransactionVersion: 0 });
-                    if (tx) {
-                        const li = document.createElement('li');
-                        const time = new Date(tx.blockTime * 1000).toLocaleString('pt-BR');
-                        li.innerText = `Sig: ${sig.signature.slice(0, 10)}... | Time: ${time} | Confirm: ${sig.confirmationStatus}`;
-                        list.appendChild(li);
-                    }
-                }
-                pushLog('TX', 'Transactions loaded');
-            } catch (error) {
-                pushLog('ERROR', `Failed to load txs: ${error.message}`);
-            }
-        }
+rpcSelect.onchange=async()=>{
+  customRpc.style.display=rpcSelect.value==='custom'?'block':'none';
+  const rpc=getRpc();
+  log('USER','RPC alterado: '+rpc);
+  const ok=await connectRpc(rpc);
+  if(ok){await refreshData();}
+};
+customRpc.onchange=async()=>{
+  const rpc=getRpc();
+  log('USER','Custom RPC alterado: '+rpc);
+  const ok=await connectRpc(rpc);
+  if(ok){await refreshData();}
+};
 
-        // Send SOL transaction
-        async function sendSol() {
-            if (!publicKey || !connection) return pushLog('ERROR', 'Wallet or RPC not connected');
-            const recipient = document.getElementById('recipient').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-            const memo = document.getElementById('memo').value;
-            if (!recipient || isNaN(amount) || amount <= 0) return pushLog('ERROR', 'Invalid recipient or amount');
+btnConnect.onclick=connectWallet;
+btnDisconnect.onclick=disconnectWallet;
+btnSend.onclick=sendSol;
 
-            try {
-                const tx = new Transaction().add(
-                    SystemProgram.transfer({
-                        fromPubkey: publicKey,
-                        toPubkey: new PublicKey(recipient),
-                        lamports: amount * LAMPORTS_PER_SOL
-                    })
-                );
-                if (memo) {
-                    tx.add(MemoProgram.memo({ memo }));
-                }
-                const { signature } = await window.solana.signAndSendTransaction(tx);
-                pushLog('TX', `SOL sent: Signature ${signature}`);
-                await updateBalance();
-                await loadTxs();
-            } catch (error) {
-                pushLog('ERROR', `Failed to send SOL: ${error.message}`);
-            }
-        }
-
-        // Set connected UI
-        function setConnectedUI(connected) {
-            document.getElementById('connect-wallet').classList.toggle('hidden', connected);
-            document.getElementById('disconnect-wallet').classList.toggle('hidden', !connected);
-            document.getElementById('wallet-address').innerText = connected ? `Endereço: ${publicKey.toBase58()}` : 'Endereço: Não conectado';
-            if (connected) {
-                updateBalance();
-                listTokens();
-                loadTxs();
-                if (autoUpdateInterval) clearInterval(autoUpdateInterval);
-                autoUpdateInterval = setInterval(() => {
-                    updateBalance();
-                    listTokens();
-                    loadTxs();
-                }, 15000);
-            } else {
-                if (autoUpdateInterval) clearInterval(autoUpdateInterval);
-                document.getElementById('sol-balance').innerText = 'Saldo SOL: 0 (USD: 0)';
-                document.getElementById('tokens-list').innerHTML = '';
-                document.getElementById('txs-list').innerHTML = '';
-            }
-        }
-
-        // Connect wallet
-        async function connectWallet() {
-            if (!connection) return pushLog('ERROR', 'Connect RPC first');
-            try {
-                const { publicKey: pk } = await window.solana.connect({ onlyIfTrusted: false });
-                publicKey = pk;
-                setConnectedUI(true);
-                pushLog('WALLET', `Wallet connected: ${publicKey.toBase58()}`);
-            } catch (error) {
-                pushLog('ERROR', `Failed to connect wallet: ${error.message}`);
-            }
-        }
-
-        // Disconnect wallet
-        async function disconnectWallet() {
-            await window.solana.disconnect();
-            publicKey = null;
-            setConnectedUI(false);
-            pushLog('WALLET', 'Wallet disconnected');
-        }
-
-        // Show loading indicator
-        function showLoading(show) {
-            document.querySelector('.loading').classList.toggle('hidden', !show);
-        }
-
-        // Event listeners
-        document.getElementById('rpc-select').addEventListener('change', (e) => {
-            const val = e.target.value;
-            document.getElementById('custom-rpc').classList.toggle('hidden', val !== 'custom');
-            document.getElementById('helius-key').classList.toggle('hidden', val !== 'helius');
-            document.getElementById('ankr-key').classList.toggle('hidden', val !== 'ankr');
-            if (val === 'helius') document.getElementById('helius-key').value = localStorage.getItem('heliusKey') || '';
-            if (val === 'ankr') document.getElementById('ankr-key').value = localStorage.getItem('ankrKey') || '';
-        });
-
-        document.getElementById('helius-key').addEventListener('input', (e) => localStorage.setItem('heliusKey', e.target.value));
-        document.getElementById('ankr-key').addEventListener('input', (e) => localStorage.setItem('ankrKey', e.target.value));
-
-        document.getElementById('connect-rpc').addEventListener('click', connectRpc);
-        document.getElementById('connect-wallet').addEventListener('click', connectWallet);
-        document.getElementById('disconnect-wallet').addEventListener('click', disconnectWallet);
-        document.getElementById('send-sol').addEventListener('click', sendSol);
-        document.getElementById('refresh-manual').addEventListener('click', () => {
-            updateBalance();
-            listTokens();
-            loadTxs();
-            fetchPrice();
-            pushLog('USER', 'Manual refresh triggered');
-        });
-        document.getElementById('clear-logs').addEventListener('click', () => {
-            logs = [];
-            document.getElementById('logs').innerText = '';
-            pushLog('USER', 'Logs cleared');
-        });
-        document.getElementById('export-logs').addEventListener('click', () => {
-            const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'wallet_toolkit.log';
-            a.click();
-            URL.revokeObjectURL(url);
-            pushLog('USER', 'Logs exported');
-        });
-
-        // Copy address on click
-        document.getElementById('wallet-address').addEventListener('click', () => {
-            if (publicKey) {
-                navigator.clipboard.writeText(publicKey.toBase58());
-                pushLog('USER', 'Address copied to clipboard');
-            }
-        });
-
-        // Initial setup
-        pushLog('INIT', 'App initialized');
-        fetchPrice();
-        setInterval(fetchPrice, 60000); // Update price every 60s
-        document.getElementById('rpc-select').value = 'mainnet'; // Default
-        connectRpc(); // Auto-connect default RPC
-    </script>
+(async()=>{
+  log('INIT','Inicializando Toolkit Auto RPC (Logs embaixo)');
+  await connectRpc(getRpc());
+})();
+</script>
 </body>
 </html>
