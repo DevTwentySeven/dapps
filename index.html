@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Solana Wallet Toolkit — Final</title>
+<style>
+  :root{--bg:#000;--panel:#071018;--muted:#9fb2d0;--accent:#00ff00;--accent-2:#00ff99;--danger:#ff6b6b}
+  html,body{height:100%}
+  body{font-family:Inter,Arial,Helvetica,sans-serif;margin:0;padding:0;background:var(--bg);color:#e6eef8;display:flex;flex-direction:column;min-height:100vh;}
+  .app{max-width:1100px;margin:20px auto;padding:18px;box-sizing:border-box;width:95%}
+  .top{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .panel{background:rgba(0,0,0,0.55);border:1px solid rgba(0,255,0,0.12);padding:12px;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6)}
+  .small{font-size:13px;color:var(--muted)}
+  .muted{color:#91a7bf}
+  .accent{color:var(--accent);font-weight:700}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1 1 300px;min-width:260px}
+  .button{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer}
+  .button.primary{background:linear-gradient(90deg,rgba(0,255,153,0.08),rgba(0,255,153,0.03));border-color:var(--accent-2)}
+  .button.danger{border-color:var(--danger);color:var(--danger)}
+  #addrDisplay{cursor:pointer;color:var(--accent)}
+  #qrcode{width:72px;height:72px;border-radius:8px;background:#081018;padding:6px}
+  nav.tabs{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  nav.tabs button{padding:8px 12px;border-radius:8px;border:1px solid rgba(0,255,0,0.08);background:transparent;color:var(--muted);cursor:pointer}
+  nav.tabs button.active{background:linear-gradient(90deg,rgba(0,255,153,0.06),rgba(0,255,153,0.02));color:var(--accent);border-color:var(--accent-2)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid rgba(0,255,0,0.03);text-align:left;font-size:14px;vertical-align:middle}
+  .token-icon{width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.03)}
+  .clickable{cursor:pointer}
+  .toast{position:fixed;right:20px;bottom:20px;padding:12px 16px;border-radius:8px;background:#08121a;color:#cfeff1;box-shadow:0 8px 30px rgba(0,0,0,0.6);z-index:9999}
+  .logs{height:160px;overflow:auto;background:rgba(0,0,0,0.4);padding:8px;border-radius:6px;font-size:13px}
+  @media (max-width:800px){
+    .top{flex-direction:column;align-items:stretch}
+    nav.tabs{justify-content:space-around}
+    #qrcode{width:56px;height:56px}
+  }
+  .neon { color:var(--accent); text-shadow:0 0 6px rgba(0,255,0,0.8); }
+  .disabled { opacity: 0.5; pointer-events: none; }
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.1);border-top:2px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-left:8px}
+  @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px}
+  .pager button{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:var(--muted);cursor:pointer}
+  .pager .info{color:var(--muted);font-size:13px;margin-right:auto}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <div style="flex:1">
+        <div style="font-family:monospace;color:var(--accent);font-size:24px">Wallet Toolkit</div>
+        <div class="small muted">Ferramenta para Phantom — abra em localhost ou GitHub Pages</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="text-align:right" class="panel">
+          <div class="small">Status</div>
+          <div id="connectStatus" class="neon">Desconectado</div>
+          <div id="addrDisplay" class="small" title="Clique para copiar">--</div>
+        </div>
+        <div class="panel" style="text-align:right;min-width:160px">
+          <div class="small">Saldo</div>
+          <div id="solBalance" style="font-weight:700">-- SOL</div>
+          <div id="usdBalance" class="small">-- USD (Fonte: CoinGecko)</div>
+        </div>
+        <div class="panel" style="text-align:center">
+          <canvas id="qrcode"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <nav class="tabs panel" id="tabs">
+      <button data-tab="dashboard" class="active">Dashboard</button>
+      <button data-tab="tokens">Tokens</button>
+      <button data-tab="txs">Transações</button>
+      <button data-tab="send">Enviar</button>
+      <button data-tab="burn">Burn</button>
+      <button data-tab="config">Config</button>
+    </nav>
+
+    <div id="content" style="margin-top:12px">
+      <div id="tab-dashboard" class="panel tabpanel">
+        <div class="row">
+          <div class="col panel">
+            <div class="small">Rede / RPC</div>
+            <select id="rpcSelect" style="width:100%;margin-top:8px">
+              <option value="https://api.devnet.solana.com">Devnet</option>
+              <option value="https://api.testnet.solana.com">Testnet</option>
+              <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
+              <option value="custom">Custom RPC</option>
+            </select>
+            <input id="customRpc" placeholder="https://..." style="margin-top:8px;display:none;width:100%"/>
+            <div style="margin-top:12px">
+              <button id="btnConnect" class="button primary">Conectar Phantom</button>
+              <button id="btnDisconnect" class="button" style="margin-left:8px">Desconectar</button>
+            </div>
+          </div>
+
+          <div class="col panel">
+            <div class="small">Resumo</div>
+            <div id="summary" style="margin-top:8px">
+              <div class="small">Preço SOL (USD): <span id="solPrice">--</span></div>
+              <div class="small">Tokens totais: <span id="totalTokens">--</span></div>
+              <div class="small">Valor total (USD): <span id="portfolioUSD">--</span></div>
+              <div class="small">Última atualização: <span id="lastUpdate">--</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-tokens" class="panel tabpanel" style="display:none">
+        <div class="small">Lista de tokens (auto-refresh a cada 2.7s)</div>
+        <div style="overflow:auto;margin-top:10px">
+          <table id="tokenTable">
+            <thead><tr><th></th><th>Ticker</th><th>Nome</th><th>Quantidade</th><th>Valor (SOL)</th><th>Valor (USD)</th><th>Mint</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-txs" class="panel tabpanel" style="display:none">
+        <div class="small">Transações recentes (20) — paginação</div>
+        <div id="txContainer" style="margin-top:8px">
+          <div id="txList" style="max-height:420px;overflow:auto"></div>
+          <div class="pager">
+            <div class="info" id="txPageInfo">Página 1</div>
+            <button id="txPrev">Anterior</button>
+            <button id="txNext">Próxima</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-send" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">Tipo</div>
+            <select id="sendType" style="width:100%;margin-top:6px"><option value="SOL">SOL</option><option value="TOKEN">Token SPL</option></select>
+            <div class="small" style="margin-top:8px">Token (se aplicável)</div>
+            <select id="tokenSelect" style="width:100%;margin-top:6px"><option value="">— selecione token —</option></select>
+            <div style="margin-top:8px" class="small">Destinatários (uma linha = 1 destino). CSV: address,amount</div>
+            <textarea id="targetAddrs" rows="6" style="width:100%;margin-top:6px" placeholder="Uma linha = um endereço (ou address,amount)"></textarea>
+            <div style="margin-top:8px" class="small">Quantidade (mesma quantia)</div>
+            <input id="amountInput" placeholder="ex: 0.5" style="width:100%;margin-top:6px"/>
+            <div class="small" style="margin-top:8px">Memo (opcional)</div>
+            <input id="memoInput" placeholder="observação" style="width:100%;margin-top:6px"/>
+            <div style="margin-top:10px">
+              <button id="btnSend" class="button primary">Enviar (mesma quantia)</button>
+              <button id="btnAirdropCsv" class="button" style="margin-left:8px">Enviar CSV</button>
+            </div>
+            <div id="sendLog" class="small muted" style="margin-top:8px"></div>
+          </div>
+
+          <div class="col">
+            <div class="small">Ações rápidas (devnet)</div>
+            <button id="btnRequestAirdrop" class="button">Pedir Airdrop devnet (1 SOL)</button>
+            <div style="margin-top:12px" class="small">Logs</div>
+            <div class="logs" id="actionLogs"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-burn" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">Escolha token para queimar (native burn)</div>
+            <select id="burnTokenSelect" style="width:100%;margin-top:8px"><option value="">— selecione token —</option></select>
+            <div style="margin-top:8px" class="small">Quantidade</div>
+            <input id="burnAmount" placeholder="quantidade" style="width:100%;margin-top:6px"/>
+            <div style="margin-top:10px">
+              <button id="btnBurn" class="button danger">Burn nativo</button>
+            </div>
+            <div id="burnLog" class="small muted" style="margin-top:8px"></div>
+          </div>
+
+          <div class="col">
+            <div class="small">Informações do mint</div>
+            <div id="mintInfo" style="margin-top:8px" class="small-muted">Selecione um token</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-config" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">RPC atual</div>
+            <div id="currentRpc" class="small-muted" style="margin-top:6px">--</div>
+            <div style="margin-top:8px" class="small">Auto-refresh: 2.7s</div>
+            <div style="margin-top:8px" class="small">Use RPCs dedicados para evitar rate limits</div>
+          </div>
+          <div class="col">
+            <div class="small">Logs principais</div>
+            <div class="logs" id="mainLogs"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:24px"></div>
+    <div class="small muted" style="text-align:center">Abra em <b>localhost</b> ou publique em <b>GitHub Pages</b>. Não rode em previews iframe.</div>
+  </div>
+
+  <div id="toastContainer"></div>
+
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+<script>
+(async function(){
+  const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionInstruction } = solanaWeb3;
+  const spl = window.splToken || {};
+  const TOKEN_PROGRAM_ID = spl.TOKEN_PROGRAM_ID || new PublicKey('TokenkegQfeZyiNwAJbNbGK7N1D1D3u3YQ2h3v');
+
+  // UI refs
+  const connectStatus = document.getElementById('connectStatus');
+  const addrDisplay = document.getElementById('addrDisplay');
+  const solBalanceEl = document.getElementById('solBalance');
+  const usdBalanceEl = document.getElementById('usdBalance');
+  const solPriceEl = document.getElementById('solPrice');
+  const totalTokensEl = document.getElementById('totalTokens');
+  const portfolioUSDEl = document.getElementById('portfolioUSD');
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  const rpcSelect = document.getElementById('rpcSelect');
+  const customRpc = document.getElementById('customRpc');
+  const btnConnect = document.getElementById('btnConnect');
+  const btnDisconnect = document.getElementById('btnDisconnect');
+  const qrcodeCanvas = document.getElementById('qrcode');
+  let qr;
+  try {
+    qr = new QRious({ element: qrcodeCanvas, size: 120, value: '' });
+  } catch(e) {
+    console.error('QRious initialization failed:', e);
+    qr = { set: (opts) => console.warn('QR not available', opts) };
+  }
+
+  const tokenTableBody = document.querySelector('#tokenTable tbody');
+  const tokenSelect = document.getElementById('tokenSelect');
+  const burnTokenSelect = document.getElementById('burnTokenSelect');
+  const burnAmountInput = document.getElementById('burnAmount');
+  const mintInfoDiv = document.getElementById('mintInfo');
+
+  const txListDiv = document.getElementById('txList');
+  const txPrev = document.getElementById('txPrev');
+  const txNext = document.getElementById('txNext');
+  const txPageInfo = document.getElementById('txPageInfo');
+
+  const sendType = document.getElementById('sendType');
+  const targetAddrs = document.getElementById('targetAddrs');
+  const amountInput = document.getElementById('amountInput');
+  const memoInput = document.getElementById('memoInput');
+  const btnSend = document.getElementById('btnSend');
+  const btnAirdropCsv = document.getElementById('btnAirdropCsv');
+  const requestAirdropBtn = document.getElementById('btnRequestAirdrop');
+  const sendLog = document.getElementById('sendLog');
+  const actionLogs = document.getElementById('actionLogs');
+  const burnLog = document.getElementById('burnLog');
+  const mainLogs = document.getElementById('mainLogs');
+  const currentRpc = document.getElementById('currentRpc');
+
+  // State
+  let connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+  let wallet = null;
+  let pubkey = null;
+  let solPriceUSD = null;
+  let tokenListCache = null;
+  let autoRefreshHandle = null;
+
+  // Tx pagination state
+  const PAGE_SIZE = 20;
+  let txBefore = null;
+  let txAfterStack = [];
+  let currentPage = 1;
+
+  function logMain(...args) {
+    const s = '[' + new Date().toLocaleTimeString() + '] ' + args.join(' ') + '\n';
+    mainLogs.textContent = s + mainLogs.textContent;
+  }
+  function logAction(...args) {
+    const s = '[' + new Date().toLocaleTimeString() + '] ' + args.join(' ') + '\n';
+    actionLogs.textContent = s + actionLogs.textContent;
+  }
+  function toast(msg, t = 2400) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), t);
+  }
+
+  function setDisabled(state) {
+    [btnSend, btnAirdropCsv, requestAirdropBtn, document.getElementById('btnBurn')].forEach(el => {
+      if (!el) return;
+      el.disabled = state;
+      el.classList.toggle('disabled', state);
+    });
+  }
+
+  // Check SPL Token library availability
+  if (!window.splToken) {
+    logMain('SPL Token library not loaded');
+    toast('Erro: Biblioteca SPL Token não carregada. Algumas funções podem não funcionar.');
+  }
+
+  // Tabs
+  document.querySelectorAll('nav.tabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('nav.tabs button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.tabpanel').forEach(p => p.style.display = 'none');
+      document.getElementById('tab-' + b.dataset.tab).style.display = 'block';
+    });
+  });
+
+  // Detect Phantom
+  async function detectPhantom(timeout = 4000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      if (window.solana?.isPhantom) return window.solana;
+      if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return null;
+  }
+
+  async function loadTokenList() {
+    if (tokenListCache) return tokenListCache;
+    try {
+      const url = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch token list`);
+      const j = await r.json();
+      tokenListCache = {};
+      for (const t of j.tokens) tokenListCache[t.address] = t;
+      logMain('Token list loaded: ' + Object.keys(tokenListCache).length);
+      return tokenListCache;
+    } catch (e) {
+      logMain('token-list load error: ' + (e.message || e));
+      tokenListCache = {};
+      return tokenListCache;
+    }
+  }
+
+  async function fetchSOLPrice() {
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}: CoinGecko API failed`);
+      const j = await r.json();
+      solPriceUSD = j.solana?.usd || null;
+      solPriceEl.textContent = solPriceUSD ? solPriceUSD.toFixed(4) : '--';
+      return solPriceUSD;
+    } catch (e) {
+      logMain('CoinGecko error: ' + (e.message || e));
+      solPriceUSD = null;
+      solPriceEl.textContent = '--';
+      return null;
+    }
+  }
+
+  // RPC change
+  rpcSelect.addEventListener('change', async () => {
+    if (rpcSelect.value === 'custom') {
+      customRpc.style.display = 'block';
+      return;
+    }
+    customRpc.style.display = 'none';
+    try {
+      connection = new Connection(rpcSelect.value, 'confirmed');
+      currentRpc.textContent = rpcSelect.value;
+      logMain('RPC switched to ' + rpcSelect.value);
+      if (pubkey) await refreshAll();
+    } catch (e) {
+      logMain('RPC switch error: ' + (e.message || e));
+      toast('Erro ao mudar RPC');
+    }
+  });
+
+  customRpc.addEventListener('change', async () => {
+    if (customRpc.value) {
+      try {
+        connection = new Connection(customRpc.value, 'confirmed');
+        currentRpc.textContent = customRpc.value;
+        logMain('Custom RPC set to ' + customRpc.value);
+        if (pubkey) await refreshAll();
+      } catch (e) {
+        logMain('Custom RPC error: ' + (e.message || e));
+        toast('Erro ao configurar RPC personalizado');
+      }
+    }
+  });
+
+  // Copy helper
+  async function copy(text, label = 'copiado') {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(label);
+    } catch (e) {
+      toast('Falha ao copiar');
+      logMain('Copy error: ' + (e.message || e));
+    }
+  }
+
+  // Connect handler
+  btnConnect.addEventListener('click', async () => {
+    try {
+      btnConnect.disabled = true;
+      btnConnect.innerHTML = 'Conectando <span class="spinner"></span>';
+      const ph = await detectPhantom(4000);
+      if (!ph) {
+        toast('Phantom não detectado. Instale a extensão: https://phantom.app');
+        logMain('Phantom not found');
+        return;
+      }
+      wallet = ph;
+      try {
+        const resp = await wallet.connect();
+        pubkey = new PublicKey(resp.publicKey);
+        connectStatus.textContent = 'Conectado';
+        addrDisplay.textContent = pubkey.toString();
+        addrDisplay.onclick = () => copy(pubkey.toString(), 'Endereço copiado');
+        qr.set({ value: pubkey.toString() });
+        toast('Carteira conectada');
+        logMain('Connected ' + pubkey.toString());
+        setDisabled(false);
+        await loadTokenList();
+        await fetchSOLPrice();
+        await refreshAll();
+        startAutoRefresh();
+        txBefore = null;
+        txAfterStack = [];
+        currentPage = 1;
+        updateTxPageInfo();
+        wallet.on('accountChanged', async (pk) => {
+          if (pk) {
+            pubkey = new PublicKey(pk);
+            addrDisplay.textContent = pubkey.toString();
+            qr.set({ value: pubkey.toString() });
+            await refreshAll();
+          } else {
+            pubkey = null;
+            connectStatus.textContent = 'Desconectado';
+            addrDisplay.textContent = '--';
+            qr.set({ value: '' });
+            stopAutoRefresh();
+            setDisabled(true);
+          }
+        });
+      } catch (e) {
+        logMain('connect error: ' + (e.message || e));
+        toast('Erro conectar: ' + (e.message || e));
+      }
+    } catch (e) {
+      logMain('connect error: ' + (e.message || e));
+      toast('Erro conectar: ' + (e.message || e));
+    } finally {
+      btnConnect.disabled = false;
+      btnConnect.innerHTML = 'Conectar Phantom';
+    }
+  });
+
+  btnDisconnect.addEventListener('click', async () => {
+    try {
+      if (wallet?.disconnect) {
+        await wallet.disconnect();
+        pubkey = null;
+        connectStatus.textContent = 'Desconectado';
+        addrDisplay.textContent = '--';
+        qr.set({ value: '' });
+        stopAutoRefresh();
+        setDisabled(true);
+        toast('Desconectado');
+        logMain('Disconnected');
+      }
+    } catch (e) {
+      logMain('disconnect error: ' + (e.message || e));
+      toast('Erro desconectar');
+    }
+  });
+
+  // Tokens
+  async function listTokens() {
+    tokenTableBody.innerHTML = '<tr><td colspan="7" class="small muted">Carregando...</td></tr>';
+    tokenSelect.innerHTML = '<option value="">— selecione token —</option>';
+    burnTokenSelect.innerHTML = '<option value="">— selecione token —</option>';
+    if (!pubkey) {
+      tokenTableBody.innerHTML = '<tr><td colspan="7">Conecte a wallet</td></tr>';
+      return;
+    }
+    if (!spl.getParsedTokenAccountsByOwner) {
+      tokenTableBody.innerHTML = '<tr><td colspan="7">Erro: Biblioteca SPL Token não carregada</td></tr>';
+      logMain('SPL Token library missing');
+      return;
+    }
+    try {
+      const res = await connection.getParsedTokenAccountsByOwner(pubkey, { programId: TOKEN_PROGRAM_ID });
+      const tokens = res.value.map(v => ({
+        mint: v.account.data.parsed.info.mint,
+        amount: v.account.data.parsed.info.tokenAmount.uiAmount || 0,
+        decimals: v.account.data.parsed.info.tokenAmount.decimals || 0,
+        account: v.pubkey.toString()
+      }));
+      const cc = tokenListCache || await loadTokenList();
+      const coingeckoIds = tokens
+        .map(t => cc[t.mint]?.extensions?.coingeckoId)
+        .filter(Boolean);
+      let tokenPrices = {};
+      if (coingeckoIds.length) {
+        const ids = Array.from(new Set(coingeckoIds)).join(',');
+        try {
+          const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd`, { cache: 'no-store' });
+          if (r.ok) tokenPrices = await r.json();
+        } catch (e) {
+          logMain('token price fetch error: ' + (e.message || e));
+        }
+      }
+      tokenTableBody.innerHTML = '';
+      let portfolioUSD = 0;
+      let countTokens = 0;
+      for (const t of tokens) {
+        const meta = cc[t.mint] || {};
+        const symbol = meta.symbol || (t.mint.slice(0, 6) + '...');
+        const name = meta.name || '—';
+        const icon = meta.logoURI || '';
+        const usdPrice = meta.extensions?.coingeckoId && tokenPrices[meta.extensions.coingeckoId]?.usd;
+        const valueUSD = usdPrice ? usdPrice * t.amount : null;
+        const valueSOL = (valueUSD && solPriceUSD) ? (valueUSD / solPriceUSD) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${icon ? '<img src="' + icon + '" class="token-icon" onerror="this.style.display=\'none\'"/>' : ''}</td>
+          <td class="clickable">${symbol}</td>
+          <td>${name}</td>
+          <td>${t.amount.toLocaleString()}</td>
+          <td>${valueSOL !== null ? valueSOL.toFixed(6) : '—'}</td>
+          <td>${valueUSD !== null ? ('$' + valueUSD.toFixed(4)) : '—'}</td>
+          <td style="font-size:12px;color:var(--muted)">${t.mint}</td>
+        `;
+        tr.querySelector('.clickable')?.addEventListener('click', () => copy(t.mint, 'Mint copiado'));
+        tokenTableBody.appendChild(tr);
+        if (t.amount > 0) {
+          const opt = document.createElement('option');
+          opt.value = JSON.stringify({ mint: t.mint, account: t.account, decimals: t.decimals });
+          opt.textContent = `${symbol} — ${t.amount}`;
+          tokenSelect.appendChild(opt);
+          burnTokenSelect.appendChild(opt.cloneNode(true));
+        }
+        if (valueUSD) portfolioUSD += valueUSD;
+        countTokens += 1;
+      }
+      totalTokensEl.textContent = countTokens;
+      portfolioUSDEl.textContent = portfolioUSD ? ('$' + portfolioUSD.toFixed(2)) : '--';
+    } catch (e) {
+      tokenTableBody.innerHTML = '<tr><td colspan="7">Erro carregando tokens</td></tr>';
+      logMain('listTokens error: ' + (e.message || e));
+    }
+  }
+
+  // Tx pagination functions
+  function updateTxPageInfo() {
+    txPageInfo.textContent = 'Página ' + currentPage;
+  }
+  async function fetchTxPage(direction = 'first') {
+    if (!pubkey) return;
+    try {
+      const opts = { limit: PAGE_SIZE };
+      if (direction === 'next' && txBefore) opts.before = txBefore;
+      if (direction === 'prev' && txAfterStack.length) opts.until = txAfterStack[txAfterStack.length - 1];
+      const sigs = await connection.getSignaturesForAddress(pubkey, opts);
+      if (!sigs?.length) {
+        txListDiv.innerHTML = '<div class="small muted">Sem transações</div>';
+        return;
+      }
+      if (direction === 'next') {
+        txAfterStack.push(sigs[sigs.length - 1].signature);
+        txBefore = sigs[sigs.length - 1].signature;
+        currentPage += 1;
+      } else if (direction === 'prev') {
+        if (txAfterStack.length) txAfterStack.pop();
+        txBefore = txAfterStack.length ? txAfterStack[txAfterStack.length - 1] : null;
+        currentPage = Math.max(1, currentPage - 1);
+      } else {
+        txBefore = sigs[sigs.length - 1].signature;
+        txAfterStack = [];
+        currentPage = 1;
+      }
+      updateTxPageInfo();
+      txListDiv.innerHTML = sigs.map(s => {
+        const status = s.err ? '❌' : '✅';
+        const time = s.blockTime ? new Date(s.blockTime * 1000).toLocaleString() : '-';
+        const short = s.signature.slice(0, 12) + '...';
+        const cluster = rpcSelect.value.includes('devnet') ? 'devnet' : (rpcSelect.value.includes('testnet') ? 'testnet' : 'mainnet');
+        const link = `https://explorer.solana.com/tx/${s.signature}?cluster=${cluster}`;
+        return `<div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.02)"><a href="${link}" target="_blank" style="color:var(--accent)">${short}</a> — ${status} <div class="small muted">${time}</div></div>`;
+      }).join('');
+    } catch (e) {
+      txListDiv.innerHTML = '<div class="small muted">Erro carregando txs</div>';
+      logMain('fetchTxPage err: ' + (e.message || e));
+    }
+  }
+
+  txNext.addEventListener('click', () => fetchTxPage('next'));
+  txPrev.addEventListener('click', () => fetchTxPage('prev'));
+
+  async function listTxs() {
+    await fetchTxPage('first');
+  }
+
+  async function refreshAll() {
+    if (!pubkey) return;
+    try {
+      await fetchSOLPrice();
+      const lam = await connection.getBalance(pubkey);
+      const sol = lam / LAMPORTS_PER_SOL;
+      solBalanceEl.textContent = sol.toFixed(6) + ' SOL';
+      usdBalanceEl.textContent = solPriceUSD ? ('$' + (sol * solPriceUSD).toFixed(2)) : '--';
+      lastUpdateEl.textContent = new Date().toLocaleTimeString();
+      await listTokens();
+      await listTxs();
+    } catch (e) {
+      logMain('refreshAll err: ' + (e.message || e));
+    }
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshHandle = setInterval(() => {
+      if (pubkey) refreshAll().catch(e => logMain('auto refresh: ' + (e.message || e)));
+    }, 2700);
+  }
+  function stopAutoRefresh() {
+    if (autoRefreshHandle) clearInterval(autoRefreshHandle);
+    autoRefreshHandle = null;
+  }
+
+  // Send functions
+  async function sendSOL(toPub, amountSol, memo) {
+    try {
+      const tx = new Transaction().add(SystemProgram.transfer({
+        fromPubkey: pubkey,
+        toPubkey: new PublicKey(toPub),
+        lamports: Math.round(amountSol * LAMPORTS_PER_SOL)
+      }));
+      if (memo) {
+        tx.add(new TransactionInstruction({
+          keys: [],
+          programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+          data: Buffer.from(memo)
+        }));
+      }
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = pubkey;
+      const signed = await wallet.signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
+      await connection.confirmTransaction({ signature: sig }, 'confirmed');
+      return sig;
+    } catch (e) {
+      throw new Error('SOL send failed: ' + (e.message || e));
+    }
+  }
+
+  async function sendToken(info, toAddr, amount, memo) {
+    if (!spl.createTransferInstruction) {
+      throw new Error('SPL Token library not loaded');
+    }
+    try {
+      const mint = new PublicKey(info.mint);
+      const fromAcc = new PublicKey(info.account);
+      const decimals = parseInt(info.decimals || 0);
+      const toPub = new PublicKey(toAddr);
+      const toATA = await spl.getAssociatedTokenAddress(mint, toPub, false, TOKEN_PROGRAM_ID);
+      const ataInfo = await connection.getAccountInfo(toATA);
+      const tx = new Transaction();
+      if (!ataInfo) {
+        tx.add(spl.createAssociatedTokenAccountInstruction(pubkey, toATA, toPub, mint, TOKEN_PROGRAM_ID));
+      }
+      const rawAmount = Math.round(amount * (10 ** decimals));
+      tx.add(spl.createTransferInstruction(fromAcc, toATA, pubkey, rawAmount));
+      if (memo) {
+        tx.add(new TransactionInstruction({
+          keys: [],
+          programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+          data: Buffer.from(memo)
+        }));
+      }
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = pubkey;
+      const signed = await wallet.signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
+      await connection.confirmTransaction({ signature: sig }, 'confirmed');
+      return sig;
+    } catch (e) {
+      throw new Error('Token send failed: ' + (e.message || e));
+    }
+  }
+
+  btnSend.addEventListener('click', async () => {
+    if (!pubkey) return toast('Conecte Phantom');
+    const lines = targetAddrs.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return toast('Inclua destinatários');
+    const amt = parseFloat(amountInput.value);
+    const memo = memoInput.value || null;
+    try {
+      if (sendType.value === 'SOL') {
+        if (isNaN(amt) || amt <= 0) return toast('Quantidade inválida');
+        for (const l of lines) {
+          const toStr = l.split(',')[0].trim();
+          try {
+            const sig = await sendSOL(toStr, amt, memo);
+            sendLog.textContent += `SOL -> ${toStr} tx:${sig}\n`;
+            logAction('SOL sent ' + sig);
+          } catch (e) {
+            sendLog.textContent += `Erro enviando SOL para ${toStr}: ${e.message}\n`;
+            logMain('send SOL err: ' + (e.message || e));
+          }
+        }
+      } else {
+        if (!spl.createTransferInstruction) {
+          toast('Erro: Biblioteca SPL Token não carregada');
+          logMain('SPL Token library missing for send');
+          return;
+        }
+        const sel = tokenSelect.value;
+        if (!sel) return toast('Selecione token');
+        const info = JSON.parse(sel);
+        if (isNaN(amt) || amt <= 0) return toast('Quantidade inválida');
+        for (const l of lines) {
+          const toStr = l.split(',')[0].trim();
+          try {
+            const sig = await sendToken(info, toStr, amt, memo);
+            sendLog.textContent += `Token -> ${toStr} tx:${sig}\n`;
+            logAction('Token sent ' + sig);
+          } catch (e) {
+            sendLog.textContent += `Erro enviando token para ${toStr}: ${e.message}\n`;
+            logMain('send token err: ' + (e.message || e));
+          }
+        }
+      }
+      await refreshAll();
+    } catch (e) {
+      sendLog.textContent += 'Erro: ' + (e.message || e) + '\n';
+      logMain('send err: ' + (e.message || e));
+    }
+  });
+
+  btnAirdropCsv.addEventListener('click', async () => {
+    if (!pubkey) return toast('Conecte Phantom');
+    const lines = targetAddrs.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return toast('Nada para enviar');
+    try {
+      for (const l of lines) {
+        const parts = l.split(',').map(p => p.trim());
+        if (parts.length < 2) continue;
+        const to = parts[0];
+        const amt = parseFloat(parts[1]);
+        if (isNaN(amt) || amt <= 0) continue;
+        try {
+          if (sendType.value === 'SOL') {
+            const sig = await sendSOL(to, amt, memoInput.value || null);
+            sendLog.textContent += `SOL -> ${to} tx:${sig}\n`;
+            logAction('SOL sent ' + sig);
+          } else {
+            if (!spl.createTransferInstruction) {
+              toast('Erro: Biblioteca SPL Token não carregada');
+              logMain('SPL Token library missing for CSV send');
+              continue;
+            }
+            const info = JSON.parse(tokenSelect.value);
+            const sig = await sendToken(info, to, amt, memoInput.value || null);
+            sendLog.textContent += `Token -> ${to} tx:${sig}\n`;
+            logAction('Token sent ' + sig);
+          }
+        } catch (e) {
+          sendLog.textContent += `Erro CSV para ${to}: ${e.message}\n`;
+          logMain('airdrop csv err: ' + (e.message || e));
+        }
+      }
+      await refreshAll();
+    } catch (e) {
+      sendLog.textContent += 'Erro CSV: ' + (e.message || e) + '\n';
+      logMain('airdrop csv err: ' + (e.message || e));
+    }
+  });
+
+  requestAirdropBtn.addEventListener('click', async () => {
+    if (!pubkey) return toast('Conecte Phantom');
+    if (!rpcSelect.value.includes('devnet')) return toast('Airdrop somente em devnet');
+    try {
+      const sig = await connection.requestAirdrop(pubkey, LAMPORTS_PER_SOL);
+      actionLogs.textContent = '[' + new Date().toLocaleTimeString() + '] Airdrop solicitado: ' + sig + '\n' + actionLogs.textContent;
+      await connection.confirmTransaction({ signature: sig }, 'confirmed');
+      await refreshAll();
+      toast('Airdrop solicitado');
+    } catch (e) {
+      actionLogs.textContent = '[' + new Date().toLocaleTimeString() + '] Erro airdrop: ' + (e.message || e) + '\n' + actionLogs.textContent;
+      logMain('airdrop err: ' + (e.message || e));
+      toast('Erro no airdrop');
+    }
+  });
+
+  document.getElementById('btnBurn').addEventListener('click', async () => {
+    if (!pubkey) return toast('Conecte Phantom');
+    if (!burnTokenSelect.value) return toast('Selecione token');
+    if (!spl.createBurnInstruction) {
+      toast('Erro: Biblioteca SPL Token não carregada');
+      logMain('SPL Token library missing for burn');
+      return;
+    }
+    const info = JSON.parse(burnTokenSelect.value);
+    const amt = parseFloat(burnAmountInput.value);
+    if (isNaN(amt) || amt <= 0) return toast('Quantia inválida');
+    const decimals = parseInt(info.decimals || 0);
+    const raw = Math.round(amt * (10 ** decimals));
+    try {
+      const tx = new Transaction().add(
+        spl.createBurnInstruction(
+          new PublicKey(info.account),
+          new PublicKey(info.mint),
+          pubkey,
+          raw,
+          [],
+          TOKEN_PROGRAM_ID
+        )
+      );
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = pubkey;
+      const signed = await wallet.signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
+      await connection.confirmTransaction({ signature: sig }, 'confirmed');
+      burnLog.textContent = `Burn tx: ${sig}`;
+      logAction('Burn ' + sig);
+      await new Promise(r => setTimeout(r, 2500));
+      await refreshAll();
+      toast('Burn realizado');
+    } catch (e) {
+      burnLog.textContent = 'Erro burn: ' + (e.message || e);
+      logMain('burn err: ' + (e.message || e));
+      toast('Erro no burn');
+    }
+  });
+
+  burnTokenSelect.addEventListener('click', async () => {
+    const v = burnTokenSelect.value;
+    if (!v) {
+      mintInfoDiv.textContent = 'Selecione um token';
+      return;
+    }
+    const info = JSON.parse(v);
+    try {
+      const mintAcc = await connection.getParsedAccountInfo(new PublicKey(info.mint));
+      if (mintAcc?.value?.data?.parsed) {
+        const p = mintAcc.value.data.parsed.info;
+        mintInfoDiv.innerHTML = `<div class="small">Decimals: ${p.decimals} • Supply: ${p.supply}</div>`;
+      } else {
+        mintInfoDiv.textContent = 'Não foi possível ler o mint';
+      }
+    } catch (e) {
+      mintInfoDiv.textContent = 'Erro lendo mint';
+      logMain('mint info err: ' + (e.message || e));
+    }
+  });
+
+  // Initial setup
+  async function init() {
+    const ph = await detectPhantom(2000);
+    if (ph) {
+      connectStatus.textContent = 'Disponível (clique Conectar)';
+      toast('Phantom disponível — clique Conectar para pedir assinatura');
+    } else {
+      connectStatus.textContent = 'Phantom não detectado';
+      toast('Phantom não detectado. Instale a extensão: https://phantom.app');
+    }
+    await loadTokenList();
+    await fetchSOLPrice();
+    currentRpc.textContent = rpcSelect.value;
+    setDisabled(true);
+  }
+
+  init().catch(e => {
+    console.error('Init failed:', e);
+    logMain('init err: ' + (e.message || e));
+    toast('Erro na inicialização');
+  });
+
+  // Expose for debug
+  window.walletToolkit = { refreshAll, connection };
+})();
+</script>
+</body>
+</html>
