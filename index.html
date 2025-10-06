@@ -3,520 +3,152 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Solana Wallet Toolkit</title>
-<meta name="description" content="d'Apps Tools" />
-<meta name="author" content="Dev Twenty Seven" />
-<link rel="icon" href="/assets/icons/27-mini-icon.png" type="image/png">
-<script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/dist/buffer.min.js"></script>
-<script>if(typeof window.Buffer==='undefined')window.Buffer=buffer.Buffer;</script>
-
+<title>Solana Wallet Toolkit v5.1</title>
 <style>
-:root {
-  --bg: #010302;
-  --card: #070a0a;
-  --muted: #39ffb5cc;
-  --accent: #00ffb7;
-  --accent-hover: #00d49c;
-  --danger: #ff5f5f;
-  --glass: rgba(0,255,183,0.05);
-  --border: rgba(0,255,183,0.2);
-}
-body {
-  background: radial-gradient(circle at 50% 10%, #03110b, #000000);
-  color: #eafff7;
-  font-family: "Inter", ui-sans-serif;
-  padding: 16px;
-  margin: 0;
-}
-.container {
-  max-width: 1000px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 0 18px rgba(0,255,183,0.08);
-}
-h2, h3 {
-  color: var(--accent);
-  text-shadow: 0 0 10px rgba(0,255,183,0.4);
-}
-.row { display: flex; gap: 12px; align-items: center; }
-.small { font-size: 13px; color: var(--muted); }
-
-.token-list {
-  display: flex; flex-direction: column; gap: 8px;
-  max-height: 320px; overflow: auto; margin-top: 8px;
-}
-.token-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 8px; border-radius: 8px;
-  background: rgba(0,255,183,0.05);
-  transition: background 0.2s;
-}
-.token-item:hover { background: rgba(0,255,183,0.1); }
-
-.token-logo {
-  width: 28px; height: 28px; border-radius: 6px;
-  background: rgba(0,255,183,0.05);
-  display: inline-flex; align-items: center; justify-content: center;
-  color: var(--accent); font-weight: bold;
-}
-.token-meta { flex: 1; display: flex; flex-direction: column; }
-.token-stats {
-  display: flex; flex-direction: column; align-items: flex-end;
-  min-width: 260px; gap: 4px;
-}
-.btn {
-  background: var(--accent); border: none;
-  padding: 6px 12px; border-radius: 8px;
-  color: #001a0d; cursor: pointer; font-weight: 700;
-  transition: background 0.15s, box-shadow 0.15s;
-}
-.btn:hover { background: var(--accent-hover); box-shadow: 0 0 10px rgba(0,255,183,0.3); }
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border 0.15s, color 0.15s;
-}
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-.copyable { cursor: pointer; text-decoration: underline; color: var(--accent); }
-.copyable:hover { color: var(--accent-hover); }
-input, select {
-  background: #010202;
-  color: #dfffee;
-  border: 1px solid rgba(0,255,183,0.2);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-family: inherit;
-}
-input:focus, select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(0,255,183,0.3);
-}
-
-/* LOG STYLES */
-#logs div {
-  margin-bottom: 3px;
-  padding: 3px 6px;
-  border-left: 3px solid transparent;
-  border-radius: 4px;
-  white-space: pre-wrap;
-}
-.log-INFO { color: #00ffb7; border-color: #00ffb7; }
-.log-ERROR { color: #ff4e4e; border-color: #ff4e4e; }
-.log-TX { color: #3affff; border-color: #3affff; }
-.log-WALLET { color: #b1ff5c; border-color: #b1ff5c; }
-.log-USER { color: #ffa84e; border-color: #ffa84e; }
-.log-PRICE { color: #00ffd5; border-color: #00ffd5; }
-.log-DIAG { color: #5cc9ff; border-color: #5cc9ff; }
+body{background-color:#000;color:#00ffb7;font-family:monospace;padding:20px}
+h2{color:#00ffb7}
+input,select,button{background:#111;color:#00ffb7;border:1px solid #00ffb7;border-radius:6px;padding:6px 10px;margin:4px}
+button{cursor:pointer;font-weight:bold}
+button:hover{background:#00ffb7;color:#000}
+#logs{white-space:pre-wrap;font-size:13px;margin-top:10px}
+.log-INFO{color:#00ffb7}.log-ERROR{color:#ff6060}.log-TX{color:#3affff}
+.token-card{border:1px solid #00ffb7;border-radius:8px;padding:6px;margin:5px 0;background:#111}
+.token-type{float:right;color:#3affff}
 </style>
 </head>
-
 <body>
-<div class="container">
-  <div class="card">
-    <h2>Solana Wallet Toolkit</h2>
-    <div class="small">RPC ativo: <span id="rpcActive">—</span></div>
+<h2>Solana Wallet Toolkit v5.1</h2>
 
-    <div style="margin-top:8px" class="row">
-      <select id="rpcSelect">
-        <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
-        <option value="https://solana-rpc.publicnode.com" selected>PublicNode</option>
-        <option value="https://api.devnet.solana.com">Devnet</option>
-        <option value="https://api.testnet.solana.com">Testnet</option>
-        <option value="custom">Custom...</option>
-      </select>
-      <input id="customRpc" placeholder="RPC custom..." style="display:none;flex:1" />
-      <button id="btnTestRpc" class="btn-ghost">Test RPC</button>
-    </div>
+<div>
+  <label>RPC:</label>
+  <select id="rpcSelect">
+    <option value="https://solana-rpc.publicnode.com" selected>PublicNode (padrão)</option>
+    <option value="https://api.mainnet-beta.solana.com">Mainnet Beta</option>
+    <option value="https://api.devnet.solana.com">Devnet</option>
+    <option value="https://api.testnet.solana.com">Testnet</option>
+  </select>
+  <button id="btnConnect">Conectar Carteira</button>
+  <button id="btnRefresh">Atualizar Tokens</button>
+</div><br>
 
-    <div style="margin-top:10px">
-      <button id="btnConnect" class="btn">Conectar Phantom</button>
-      <button id="btnDisconnect" class="btn-ghost" style="display:none">Desconectar</button>
-      <button id="btnDiag" class="btn-ghost" style="margin-left:8px">Diagnostics</button>
-    </div>
-
-    <div style="margin-top:10px">
-      <div class="small">Endereço:</div>
-      <div id="walletAddr" class="small">—</div>
-      <div class="small" style="margin-top:6px">Saldo:</div>
-      <div id="walletBalance" class="small">—</div>
-      <div class="small" style="margin-top:6px">Preço SOL:</div>
-      <div id="solPrice" class="small">—</div>
-    </div>
-
-    <div style="margin-top:10px">
-      <input id="tokenCa" placeholder="Token CA (vazio = SOL)" style="width:100%;margin-bottom:6px" />
-      <input id="sendTo" placeholder="Destinatário (base58)" style="width:100%;margin-bottom:6px" />
-      <input id="sendAmount" placeholder="Quantidade" style="width:100%;margin-bottom:6px" />
-      <input id="sendMemo" placeholder="Memo opcional" style="width:100%;margin-bottom:6px" />
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button id="btnSend" class="btn">Enviar</button>
-        <button id="btnResetAmount" class="btn-ghost">Reset amount</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Portfolio</h3>
-    <div id="tokenList" class="token-list small">Conecte sua carteira para visualizar tokens...</div>
-    <div id="totalUsd" class="small" style="margin-top:8px">Total estimado: —</div>
-  </div>
-
-  <div class="card">
-    <h3>Logs</h3>
-    <div id="logs" class="small" style="max-height:300px;overflow:auto"></div>
-  </div>
+<div>
+  <label>Token Mint:</label><br>
+  <input id="mintInput" placeholder="Token mint address" size="60"><br>
+  <label>Destino:</label><br>
+  <input id="destInput" placeholder="Carteira destino" size="60"><br>
+  <label>Quantidade:</label><br>
+  <input id="amountInput" placeholder="Quantidade"><br>
+  <button id="btnSend">Enviar Token</button>
 </div>
+
+<h3>Tokens:</h3>
+<div id="tokenList"></div>
+
+<div id="logs"></div>
 
 <script type="module">
 import {
-  Connection, PublicKey, SystemProgram,
-  Transaction, TransactionInstruction, LAMPORTS_PER_SOL
+  Connection, PublicKey, Transaction, LAMPORTS_PER_SOL
 } from "https://esm.sh/@solana/web3.js@1.95.3";
 import {
   getAssociatedTokenAddress, createTransferInstruction, createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID
 } from "https://esm.sh/@solana/spl-token@0.3.0";
 
-const SOL_MINT = '11111111111111111111111111111111';
+window.Buffer = window.Buffer || {from:(s)=>new TextEncoder().encode(s)};
 
-const btnConnect=document.getElementById('btnConnect'),
-btnDisconnect=document.getElementById('btnDisconnect'),
-btnDiag=document.getElementById('btnDiag'),
-walletAddrEl=document.getElementById('walletAddr'),
-walletBalanceEl=document.getElementById('walletBalance'),
-solPriceEl=document.getElementById('solPrice'),
-tokenListEl=document.getElementById('tokenList'),
-totalUsdEl=document.getElementById('totalUsd'),
-logsEl=document.getElementById('logs'),
-rpcSelect=document.getElementById('rpcSelect'),
-customRpc=document.getElementById('customRpc'),
-rpcActive=document.getElementById('rpcActive'),
-btnTestRpc=document.getElementById('btnTestRpc'),
-tokenCaInput=document.getElementById('tokenCa'),
-sendToInput=document.getElementById('sendTo'),
-sendAmountInput=document.getElementById('sendAmount'),
-sendMemoInput=document.getElementById('sendMemo'),
-btnSend=document.getElementById('btnSend'),
-btnResetAmount=document.getElementById('btnResetAmount');
+const logs = document.getElementById("logs");
+function log(lvl,msg){const t=new Date().toISOString();logs.innerHTML += `\n${t} [${lvl}] ${msg}`;console.log(`[${lvl}]`,msg);}
+const rpcSel=document.getElementById("rpcSelect");
+let walletPubkey=null;
 
-let connection=null, wallet=null, pubkey=null, solPrice=0,
-priceCache={}, metaCache={}, tokenDomMap={}, tokensLoaded=false, autoRefreshId=null;
-
-// Log colorido
-function pushLog(level,msg){
-  const t=new Date().toISOString();
-  const line=document.createElement('div');
-  line.className=`log-${level}`;
-  line.textContent=`${t} [${level}] ${msg}`;
-  logsEl.prepend(line);
-  console.log(`[${level}]`, msg);
-}
-
-// RPC
-function getRpc(){
-  if(rpcSelect.value==='custom')
-    return customRpc.value.trim() || 'https://solana-rpc.publicnode.com';
-  return rpcSelect.value;
-}
-async function connectRpc(rpc){
-  try{
-    connection=new Connection(rpc,{commitment:'confirmed'});
-    await connection.getVersion();
-    rpcActive.textContent=rpc;
-    pushLog('INFO',`Connected RPC: ${rpc}`);
-    return true;
-  }catch(e){
-    pushLog('ERROR',`RPC failed ${rpc} ${e.message}`);
-    if((e.message && e.message.includes('403')) || rpc.includes('mainnet-beta')){
-      pushLog('INFO','Falling back to PublicNode');
-      const fb='https://solana-rpc.publicnode.com';
-      connection=new Connection(fb,{commitment:'confirmed'});
-      await connection.getVersion();
-      rpcActive.textContent=fb;
-      return true;
-    }
-    return false;
-  }
-}
-
-// Função para detectar o tipo de token (SPL ou SPL-2022)
-async function detectTokenProgram(mintAddress) {
-  try {
-    const mintPubkey = new PublicKey(mintAddress);
-
-    // Primeiro tenta com TOKEN_PROGRAM_ID (SPL padrão)
-    try {
-      const mintInfo = await connection.getAccountInfo(mintPubkey);
-      if (mintInfo && mintInfo.owner.equals(TOKEN_PROGRAM_ID)) {
-        return TOKEN_PROGRAM_ID;
-      }
-    } catch (e) {
-      // Ignora erro e tenta SPL-2022
-    }
-
-    // Depois tenta com TOKEN_2022_PROGRAM_ID
-    try {
-      const mintInfo = await connection.getAccountInfo(mintPubkey);
-      if (mintInfo && mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-        return TOKEN_2022_PROGRAM_ID;
-      }
-    } catch (e) {
-      // Ignora erro
-    }
-
-    // Se não conseguir detectar, usa SPL padrão como fallback
-    return TOKEN_PROGRAM_ID;
-  } catch (e) {
-    pushLog('ERROR', `Erro ao detectar programa do token: ${e.message}`);
-    return TOKEN_PROGRAM_ID;
-  }
-}
-
-// Wallet connect/disconnect
 async function connectWallet(){
   try{
-    if(!window.solana || !window.solana.isPhantom){
-      alert('Instale a extensão Phantom'); return;
-    }
-    wallet=window.solana;
-    const ok=await connectRpc(getRpc());
-    if(!ok){ pushLog('ERROR','RPC connect failed'); return; }
-
-    const resp=await wallet.connect({onlyIfTrusted:false});
-    pubkey=resp.publicKey;
-    walletAddrEl.textContent=pubkey.toBase58();
-    btnConnect.style.display='none';
-    btnDisconnect.style.display='inline-block';
-    pushLog('WALLET',`Connected ${pubkey.toBase58()}`);
-    await refreshAll();
-    startAutoRefresh();
-
-    wallet.on?.('accountChanged',async newPk=>{
-      if(!newPk) return disconnectWallet();
-      pubkey=newPk; walletAddrEl.textContent=pubkey.toBase58(); await refreshAll();
-    });
-    wallet.on?.('disconnect',()=>disconnectWallet());
-  }catch(e){ pushLog('ERROR',`Connect wallet failed: ${e.message}`); }
+    if(window.solana?.isPhantom){
+      const resp=await window.solana.connect();
+      walletPubkey=new PublicKey(resp.publicKey.toString());
+      log("INFO",`Carteira conectada: ${walletPubkey.toBase58()}`);
+    }else{throw new Error("Phantom não detectado");}
+  }catch(e){log("ERROR",e.message);}
 }
 
-function disconnectWallet(){
-  try{wallet?.disconnect?.();}catch{}
-  wallet=null; pubkey=null;
-  walletAddrEl.textContent='—';
-  walletBalanceEl.textContent='—';
-  tokenListEl.innerHTML='—';
-  totalUsdEl.textContent='';
-  btnConnect.style.display='inline-block';
-  btnDisconnect.style.display='none';
-  tokensLoaded=false;
-  stopAutoRefresh();
-  pushLog('WALLET','Disconnected');
+async function detectProgram(connection,mintAddr){
+  try{
+    const info=await connection.getAccountInfo(new PublicKey(mintAddr));
+    if(!info)return TOKEN_PROGRAM_ID;
+    const owner=info.owner.toBase58();
+    if(owner===TOKEN_2022_PROGRAM_ID.toBase58())return TOKEN_2022_PROGRAM_ID;
+    return TOKEN_PROGRAM_ID;
+  }catch{return TOKEN_PROGRAM_ID;}
 }
 
-function startAutoRefresh(){
-  if(autoRefreshId) clearInterval(autoRefreshId);
-  autoRefreshId=setInterval(refreshAll,30000);
+async function getPriceUSD(){
+  try{
+    const r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
+    const j=await r.json();
+    return j.solana.usd;
+  }catch{return 0;}
 }
 
-function stopAutoRefresh(){
-  if(autoRefreshId){ clearInterval(autoRefreshId); autoRefreshId=null; }
-}
+async function refreshTokens(){
+  if(!walletPubkey){log("ERROR","Conecte a carteira primeiro");return;}
+  const rpc=rpcSel.value;
+  const conn=new Connection(rpc,"confirmed");
+  log("INFO","Atualizando tokens...");
+  const tokenListDiv=document.getElementById("tokenList");
+  tokenListDiv.innerHTML="";
 
-// Send transaction
-async function sendTransaction(){
-  if(!wallet || !pubkey || !connection){
-    pushLog('ERROR','Wallet not connected'); return;
+  const ataList=await conn.getParsedTokenAccountsByOwner(walletPubkey,{programId:TOKEN_PROGRAM_ID});
+  const ataList22=await conn.getParsedTokenAccountsByOwner(walletPubkey,{programId:TOKEN_2022_PROGRAM_ID});
+  const allAccounts=[...ataList.value,...ataList22.value];
+  const solBal=await conn.getBalance(walletPubkey);
+  const solPrice=await getPriceUSD();
+  log("INFO",`Saldo SOL: ${(solBal/LAMPORTS_PER_SOL).toFixed(4)} (~$${(solBal/LAMPORTS_PER_SOL*solPrice).toFixed(2)})`);
+
+  for(const acc of allAccounts){
+    try{
+      const info=acc.account.data.parsed.info;
+      const mint=info.mint;
+      const amt=parseFloat(info.tokenAmount.uiAmountString);
+      const prog=acc.account.owner.toBase58()===TOKEN_2022_PROGRAM_ID.toBase58()?"SPL-2022":"SPL";
+      const card=document.createElement("div");
+      card.className="token-card";
+      card.innerHTML=`<b>${mint}</b><span class='token-type'>${prog}</span><br>Qtd: ${amt}`;
+      tokenListDiv.appendChild(card);
+    }catch(e){log("ERROR",e.message);}
   }
-
-  const tokenCa = tokenCaInput.value.trim();
-  const sendTo = sendToInput.value.trim();
-  const sendAmount = sendAmountInput.value.trim();
-  const memo = sendMemoInput.value.trim();
-
-  if(!sendTo || !sendAmount){
-    pushLog('ERROR','Destinatário e quantidade são obrigatórios'); return;
-  }
-
-  try {
-    const toPubkey = new PublicKey(sendTo);
-    const amount = parseFloat(sendAmount);
-
-    if(isNaN(amount) || amount <= 0){
-      pushLog('ERROR','Quantidade inválida'); return;
-    }
-
-    const transaction = new Transaction();
-
-    // Se não tem token CA, envia SOL
-    if(!tokenCa || tokenCa === SOL_MINT){
-      const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: pubkey,
-          toPubkey: toPubkey,
-          lamports: lamports
-        })
-      );
-      pushLog('INFO', `Preparando envio de ${amount} SOL`);
-    } else {
-      // Envia token SPL/SPL-2022
-      const mintPubkey = new PublicKey(tokenCa);
-
-      // Detecta o programa do token
-      const tokenProgram = await detectTokenProgram(tokenCa);
-      pushLog('INFO', `Token detectado como: ${tokenProgram.equals(TOKEN_2022_PROGRAM_ID) ? 'SPL-2022' : 'SPL'}`);
-
-      // Busca informações do token para obter decimais
-      let decimals = 6; // padrão
-      try {
-        const mintInfo = await connection.getAccountInfo(mintPubkey);
-        if (mintInfo) {
-          // Parse básico dos dados da mint para obter decimals
-          const data = mintInfo.data;
-          if (data.length >= 44) {
-            decimals = data[44]; // decimals está no byte 44
-          }
-        }
-      } catch (e) {
-        pushLog('ERROR', `Erro ao obter decimals do token: ${e.message}`);
-      }
-
-      const tokenAmount = Math.floor(amount * Math.pow(10, decimals));
-
-      const fromTokenAccount = await getAssociatedTokenAddress(
-        mintPubkey,
-        pubkey,
-        false,
-        tokenProgram
-      );
-
-      const toTokenAccount = await getAssociatedTokenAddress(
-        mintPubkey,
-        toPubkey,
-        false,
-        tokenProgram
-      );
-
-      // Verifica se a conta de destino existe
-      const toAccountInfo = await connection.getAccountInfo(toTokenAccount);
-      if (!toAccountInfo) {
-        // Cria a conta de token associada para o destinatário
-        transaction.add(
-          createAssociatedTokenAccountInstruction(
-            pubkey,
-            toTokenAccount,
-            toPubkey,
-            mintPubkey,
-            tokenProgram
-          )
-        );
-        pushLog('INFO', 'Criando conta de token para o destinatário');
-      }
-
-      // Adiciona instrução de transferência
-      transaction.add(
-        createTransferInstruction(
-          fromTokenAccount,
-          toTokenAccount,
-          pubkey,
-          tokenAmount,
-          [],
-          tokenProgram
-        )
-      );
-
-      pushLog('INFO', `Preparando envio de ${amount} tokens (${tokenAmount} unidades)`);
-    }
-
-    // Adiciona memo se fornecido
-    if(memo){
-      transaction.add(
-        new TransactionInstruction({
-          keys: [{pubkey: pubkey, isSigner: true, isWritable: true}],
-          data: Buffer.from(memo, 'utf8'),
-          programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
-        })
-      );
-    }
-
-    // Envia transação
-    const { blockhash } = await connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = pubkey;
-
-    const signed = await wallet.signTransaction(transaction);
-    const signature = await connection.sendRawTransaction(signed.serialize());
-
-    pushLog('TX', `Transação enviada: ${signature}`);
-
-    // Confirma transação
-    const confirmation = await connection.confirmTransaction(signature);
-    if (confirmation.value.err) {
-      pushLog('ERROR', `Transação falhou: ${JSON.stringify(confirmation.value.err)}`);
-    } else {
-      pushLog('TX', `Transação confirmada: ${signature}`);
-      // Limpa campos após sucesso
-      tokenCaInput.value = '';
-      sendToInput.value = '';
-      sendAmountInput.value = '';
-      sendMemoInput.value = '';
-      // Atualiza saldos
-      setTimeout(refreshAll, 2000);
-    }
-
-  } catch (e) {
-    pushLog('ERROR', `Erro no envio: ${e.message}`);
-  }
+  log("INFO","Tokens atualizados");
 }
 
-// Refresh functions (placeholder - você precisa implementar estas)
-async function refreshAll() {
-  // Implementar refresh de saldos e tokens
-  pushLog('INFO', 'Atualizando dados...');
+async function sendToken(){
+  if(!walletPubkey){log("ERROR","Conecte a carteira primeiro");return;}
+  const rpc=rpcSel.value;
+  const conn=new Connection(rpc,"confirmed");
+  const mintAddr=document.getElementById("mintInput").value.trim();
+  const destAddr=document.getElementById("destInput").value.trim();
+  const amt=parseFloat(document.getElementById("amountInput").value.trim());
+  if(!mintAddr||!destAddr||!amt){log("ERROR","Campos incompletos");return;}
+  try{
+    const mint=new PublicKey(mintAddr);
+    const to=new PublicKey(destAddr);
+    const program=await detectProgram(conn,mintAddr);
+    const fromAta=await getAssociatedTokenAddress(mint,walletPubkey,false,program);
+    const toAta=await getAssociatedTokenAddress(mint,to,false,program);
+    const infoTo=await conn.getAccountInfo(toAta);
+    const tx=new Transaction();
+    if(!infoTo){tx.add(createAssociatedTokenAccountInstruction(walletPubkey,toAta,walletPubkey,mint,program));}
+    tx.add(createTransferInstruction(fromAta,toAta,walletPubkey,amt*1e9,[],program));
+    const {blockhash}=await conn.getLatestBlockhash();
+    tx.recentBlockhash=blockhash;tx.feePayer=walletPubkey;
+    const signed=await window.solana.signTransaction(tx);
+    const sig=await conn.sendRawTransaction(signed.serialize());
+    log("TX",`Transação enviada: https://solscan.io/tx/${sig}`);
+  }catch(e){log("ERROR",e.message);}
 }
 
-// Event listeners
-btnConnect.onclick = connectWallet;
-btnDisconnect.onclick = disconnectWallet;
-btnSend.onclick = sendTransaction;
-
-btnResetAmount.onclick = () => {
-  sendAmountInput.value = '';
-};
-
-rpcSelect.onchange = () => {
-  customRpc.style.display = rpcSelect.value === 'custom' ? 'block' : 'none';
-};
-
-btnTestRpc.onclick = async () => {
-  const rpc = getRpc();
-  const ok = await connectRpc(rpc);
-  if (ok) {
-    pushLog('INFO', `RPC teste OK: ${rpc}`);
-  }
-};
-
-btnDiag.onclick = () => {
-  pushLog('DIAG', `Wallet: ${wallet ? 'Connected' : 'Disconnected'}`);
-  pushLog('DIAG', `Connection: ${connection ? 'Active' : 'Inactive'}`);
-  pushLog('DIAG', `Pubkey: ${pubkey ? pubkey.toBase58() : 'None'}`);
-};
-
-// Initialize
-connectRpc(getRpc());
+document.getElementById("btnConnect").onclick=connectWallet;
+document.getElementById("btnRefresh").onclick=refreshTokens;
+document.getElementById("btnSend").onclick=sendToken;
 </script>
 </body>
 </html>
