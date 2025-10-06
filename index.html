@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Solana Wallet Toolkit v5.1</title>
+<title>Solana Wallet Toolkit v5.3</title>
 <style>
 body{background-color:#000;color:#00ffb7;font-family:monospace;padding:20px}
 h2{color:#00ffb7}
@@ -14,10 +14,12 @@ button:hover{background:#00ffb7;color:#000}
 .log-INFO{color:#00ffb7}.log-ERROR{color:#ff6060}.log-TX{color:#3affff}
 .token-card{border:1px solid #00ffb7;border-radius:8px;padding:6px;margin:5px 0;background:#111}
 .token-type{float:right;color:#3affff}
+.small{font-size:13px;color:#39ffb5cc}
+.footer{margin-top:12px;color:#8fb7a3;font-size:12px}
 </style>
 </head>
 <body>
-<h2>Solana Wallet Toolkit v5.1</h2>
+<h2>Solana Wallet Toolkit v5.3</h2>
 
 <div>
   <label>RPC:</label>
@@ -26,7 +28,9 @@ button:hover{background:#00ffb7;color:#000}
     <option value="https://api.mainnet-beta.solana.com">Mainnet Beta</option>
     <option value="https://api.devnet.solana.com">Devnet</option>
     <option value="https://api.testnet.solana.com">Testnet</option>
+    <option value="custom">Custom...</option>
   </select>
+  <input id="customRpc" placeholder="RPC custom..." style="display:none;width:420px;margin-left:8px" />
   <button id="btnConnect">Conectar Carteira</button>
   <button id="btnRefresh">Atualizar Tokens</button>
 </div><br>
@@ -38,6 +42,8 @@ button:hover{background:#00ffb7;color:#000}
   <input id="destInput" placeholder="Carteira destino" size="60"><br>
   <label>Quantidade:</label><br>
   <input id="amountInput" placeholder="Quantidade"><br>
+  <label>Memo (opcional):</label><br>
+  <input id="memoInput" placeholder="Texto memo" size="60"><br>
   <button id="btnSend">Enviar Token</button>
 </div>
 
@@ -46,109 +52,372 @@ button:hover{background:#00ffb7;color:#000}
 
 <div id="logs"></div>
 
+<div class="footer">Nota: teste em Devnet antes de operar em Mainnet. PublicNode é o padrão.</div>
+
 <script type="module">
+/*
+  solana_wallet_toolkit_v5.3
+  - Detecta SPL vs SPL-2022 corretamente
+  - Usa getAssociatedTokenAddress with tokenProgram & assocProgram when available
+  - Reads decimals properly and computes token amount
+  - Adds simulation logs on failure
+*/
+
 import {
-  Connection, PublicKey, Transaction, LAMPORTS_PER_SOL
+  Connection, PublicKey, Transaction, TransactionInstruction, LAMPORTS_PER_SOL
 } from "https://esm.sh/@solana/web3.js@1.95.3";
 import {
   getAssociatedTokenAddress, createTransferInstruction, createAssociatedTokenAccountInstruction,
-  TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID
+  TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
 } from "https://esm.sh/@solana/spl-token@0.3.0";
 
-window.Buffer = window.Buffer || {from:(s)=>new TextEncoder().encode(s)};
+// minimal Buffer polyfill used by some wallets / libs
+window.Buffer = window.Buffer || { from: (s) => new TextEncoder().encode(s) };
 
-const logs = document.getElementById("logs");
-function log(lvl,msg){const t=new Date().toISOString();logs.innerHTML += `\n${t} [${lvl}] ${msg}`;console.log(`[${lvl}]`,msg);}
-const rpcSel=document.getElementById("rpcSelect");
-let walletPubkey=null;
+const logsEl = document.getElementById("logs");
+function pushLog(level, msg){
+  const t = new Date().toISOString();
+  logsEl.innerHTML += `\n${t} [${level}] ${msg}`;
+  console.log(`[${level}]`, msg);
+}
 
+const rpcSelect = document.getElementById("rpcSelect");
+const customRpcInput = document.getElementById("customRpc");
+const btnConnect = document.getElementById("btnConnect");
+const btnRefresh = document.getElementById("btnRefresh");
+const btnSend = document.getElementById("btnSend");
+const mintInput = document.getElementById("mintInput");
+const destInput = document.getElementById("destInput");
+const amountInput = document.getElementById("amountInput");
+const memoInput = document.getElementById("memoInput");
+const tokenListDiv = document.getElementById("tokenList");
+
+let walletPubkey = null;
+let connection = null;
+
+rpcSelect.onchange = () => {
+  customRpcInput.style.display = rpcSelect.value === 'custom' ? 'inline-block' : 'none';
+};
+
+function getRpcUrl(){
+  if(rpcSelect.value === 'custom') return customRpcInput.value.trim() || 'https://solana-rpc.publicnode.com';
+  return rpcSelect.value;
+}
+
+async function ensureConnection(){
+  const rpc = getRpcUrl();
+  if(!connection || connection.rpcEndpoint !== rpc){
+    connection = new Connection(rpc, "confirmed");
+    try{
+      await connection.getVersion();
+      pushLog('INFO', `Conectado RPC: ${rpc}`);
+    }catch(e){
+      pushLog('ERROR', `Falha RPC ${rpc}: ${e.message||e}. Fallback para PublicNode.`);
+      connection = new Connection('https://solana-rpc.publicnode.com', 'confirmed');
+      await connection.getVersion();
+    }
+  }
+}
+
+// Connect wallet
 async function connectWallet(){
   try{
-    if(window.solana?.isPhantom){
-      const resp=await window.solana.connect();
-      walletPubkey=new PublicKey(resp.publicKey.toString());
-      log("INFO",`Carteira conectada: ${walletPubkey.toBase58()}`);
-    }else{throw new Error("Phantom não detectado");}
-  }catch(e){log("ERROR",e.message);}
-}
-
-async function detectProgram(connection,mintAddr){
-  try{
-    const info=await connection.getAccountInfo(new PublicKey(mintAddr));
-    if(!info)return TOKEN_PROGRAM_ID;
-    const owner=info.owner.toBase58();
-    if(owner===TOKEN_2022_PROGRAM_ID.toBase58())return TOKEN_2022_PROGRAM_ID;
-    return TOKEN_PROGRAM_ID;
-  }catch{return TOKEN_PROGRAM_ID;}
-}
-
-async function getPriceUSD(){
-  try{
-    const r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
-    const j=await r.json();
-    return j.solana.usd;
-  }catch{return 0;}
-}
-
-async function refreshTokens(){
-  if(!walletPubkey){log("ERROR","Conecte a carteira primeiro");return;}
-  const rpc=rpcSel.value;
-  const conn=new Connection(rpc,"confirmed");
-  log("INFO","Atualizando tokens...");
-  const tokenListDiv=document.getElementById("tokenList");
-  tokenListDiv.innerHTML="";
-
-  const ataList=await conn.getParsedTokenAccountsByOwner(walletPubkey,{programId:TOKEN_PROGRAM_ID});
-  const ataList22=await conn.getParsedTokenAccountsByOwner(walletPubkey,{programId:TOKEN_2022_PROGRAM_ID});
-  const allAccounts=[...ataList.value,...ataList22.value];
-  const solBal=await conn.getBalance(walletPubkey);
-  const solPrice=await getPriceUSD();
-  log("INFO",`Saldo SOL: ${(solBal/LAMPORTS_PER_SOL).toFixed(4)} (~$${(solBal/LAMPORTS_PER_SOL*solPrice).toFixed(2)})`);
-
-  for(const acc of allAccounts){
-    try{
-      const info=acc.account.data.parsed.info;
-      const mint=info.mint;
-      const amt=parseFloat(info.tokenAmount.uiAmountString);
-      const prog=acc.account.owner.toBase58()===TOKEN_2022_PROGRAM_ID.toBase58()?"SPL-2022":"SPL";
-      const card=document.createElement("div");
-      card.className="token-card";
-      card.innerHTML=`<b>${mint}</b><span class='token-type'>${prog}</span><br>Qtd: ${amt}`;
-      tokenListDiv.appendChild(card);
-    }catch(e){log("ERROR",e.message);}
+    await ensureConnection();
+    if(!window.solana || !window.solana.isPhantom){ alert('Instale a Phantom Wallet'); return; }
+    const resp = await window.solana.connect();
+    walletPubkey = new PublicKey(resp.publicKey.toString());
+    pushLog('INFO', `Carteira conectada: ${walletPubkey.toBase58()}`);
+    // refresh tokens + balance
+    await refreshTokens();
+  }catch(e){
+    pushLog('ERROR', `Connect wallet failed: ${e.message || e}`);
   }
-  log("INFO","Tokens atualizados");
 }
 
-async function sendToken(){
-  if(!walletPubkey){log("ERROR","Conecte a carteira primeiro");return;}
-  const rpc=rpcSel.value;
-  const conn=new Connection(rpc,"confirmed");
-  const mintAddr=document.getElementById("mintInput").value.trim();
-  const destAddr=document.getElementById("destInput").value.trim();
-  const amt=parseFloat(document.getElementById("amountInput").value.trim());
-  if(!mintAddr||!destAddr||!amt){log("ERROR","Campos incompletos");return;}
+// detect program owner for mint robustly
+async function detectProgram(mintAddr){
   try{
-    const mint=new PublicKey(mintAddr);
-    const to=new PublicKey(destAddr);
-    const program=await detectProgram(conn,mintAddr);
-    const fromAta=await getAssociatedTokenAddress(mint,walletPubkey,false,program);
-    const toAta=await getAssociatedTokenAddress(mint,to,false,program);
-    const infoTo=await conn.getAccountInfo(toAta);
-    const tx=new Transaction();
-    if(!infoTo){tx.add(createAssociatedTokenAccountInstruction(walletPubkey,toAta,walletPubkey,mint,program));}
-    tx.add(createTransferInstruction(fromAta,toAta,walletPubkey,amt*1e9,[],program));
-    const {blockhash}=await conn.getLatestBlockhash();
-    tx.recentBlockhash=blockhash;tx.feePayer=walletPubkey;
-    const signed=await window.solana.signTransaction(tx);
-    const sig=await conn.sendRawTransaction(signed.serialize());
-    log("TX",`Transação enviada: https://solscan.io/tx/${sig}`);
-  }catch(e){log("ERROR",e.message);}
+    // primary: getAccountInfo (raw)
+    const mintPub = new PublicKey(mintAddr);
+    const info = await connection.getAccountInfo(mintPub);
+    if(info && info.owner){
+      const ownerStr = info.owner.toBase58();
+      pushLog('INFO', `Mint owner: ${ownerStr}`);
+      if(ownerStr === TOKEN_2022_PROGRAM_ID.toBase58()) {
+        pushLog('INFO','Detected token program: SPL-2022');
+        return TOKEN_2022_PROGRAM_ID;
+      }
+      if(ownerStr === TOKEN_PROGRAM_ID.toBase58()) {
+        pushLog('INFO','Detected token program: SPL (classic)');
+        return TOKEN_PROGRAM_ID;
+      }
+      // owner present but unknown
+      pushLog('INFO', 'Mint owner is neither classic nor 2022; defaulting to classic TOKEN_PROGRAM_ID');
+      return TOKEN_PROGRAM_ID;
+    }
+
+    // fallback: parsed account
+    const parsed = await connection.getParsedAccountInfo(mintPub);
+    if(parsed && parsed.value && parsed.value.owner){
+      const ownerStr = parsed.value.owner.toBase58();
+      pushLog('INFO', `Parsed mint owner: ${ownerStr}`);
+      if(ownerStr === TOKEN_2022_PROGRAM_ID.toBase58()) return TOKEN_2022_PROGRAM_ID;
+      return TOKEN_PROGRAM_ID;
+    }
+
+    // if account doesn't exist or owner unknown, assume classic (safe default)
+    pushLog('WARN', 'Mint account info missing — assuming classic SPL program (TOKEN_PROGRAM_ID).');
+    return TOKEN_PROGRAM_ID;
+
+  }catch(e){
+    pushLog('ERROR', `detectProgram failed: ${e.message || e}. Defaulting to TOKEN_PROGRAM_ID`);
+    return TOKEN_PROGRAM_ID;
+  }
 }
 
-document.getElementById("btnConnect").onclick=connectWallet;
-document.getElementById("btnRefresh").onclick=refreshTokens;
-document.getElementById("btnSend").onclick=sendToken;
+// get decimals safely
+async function getMintDecimals(mintAddr){
+  try{
+    const mintInfo = await connection.getParsedAccountInfo(new PublicKey(mintAddr));
+    const decimals = mintInfo?.value?.data?.parsed?.info?.decimals;
+    if(typeof decimals === 'number') return decimals;
+    // fallback: try raw account inspection: spl-token mint layout has decimals at offset 44 in native layout
+    const raw = await connection.getAccountInfo(new PublicKey(mintAddr));
+    if(raw && raw.data && raw.data.length > 44){
+      return raw.data[44];
+    }
+    pushLog('WARN', 'Decimals não encontrado, usando 9 por padrão');
+    return 9;
+  }catch(e){
+    pushLog('ERROR', `getMintDecimals failed: ${e.message||e}. Using 9`);
+    return 9;
+  }
+}
+
+// refresh token list (unified, SPL + SPL-2022 together)
+async function refreshTokens(){
+  try{
+    if(!walletPubkey){ pushLog('ERROR','Conecte a carteira primeiro'); return; }
+    await ensureConnection();
+    pushLog('INFO','Atualizando tokens...');
+    tokenListDiv.innerHTML = '';
+    const classicAccounts = await connection.getParsedTokenAccountsByOwner(walletPubkey, { programId: TOKEN_PROGRAM_ID });
+    const token2022Accounts = await connection.getParsedTokenAccountsByOwner(walletPubkey, { programId: TOKEN_2022_PROGRAM_ID });
+    const combined = [...(classicAccounts?.value || []), ...(token2022Accounts?.value || [])];
+
+    // show SOL balance
+    try{
+      const lamports = await connection.getBalance(walletPubkey);
+      const sol = lamports / LAMPORTS_PER_SOL;
+      // fetch price quickly (non-blocking)
+      let usd = '';
+      try{
+        const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        const j = await r.json();
+        const price = j?.solana?.usd || 0;
+        usd = ` (~$${(sol*price).toFixed(2)})`;
+      }catch(e){ /* ignore price error */ }
+      pushLog('INFO', `Saldo SOL: ${sol.toFixed(6)}${usd}`);
+    }catch(e){ pushLog('ERROR', 'Erro lendo saldo SOL: '+(e.message||e)); }
+
+    if(combined.length === 0){
+      tokenListDiv.innerHTML = '<div class="small">Nenhum token encontrado</div>';
+      pushLog('INFO','Tokens atualizados (nenhum token)');
+      return;
+    }
+
+    for(const a of combined){
+      try{
+        const parsed = a.account.data.parsed;
+        const info = parsed.info;
+        const mint = info.mint;
+        const decimals = info.tokenAmount?.decimals ?? 0;
+        const uiAmount = info.tokenAmount?.uiAmountString ?? String(info.tokenAmount?.uiAmount ?? 0);
+        const programUsed = a.account.owner.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58() ? 'SPL-2022' : 'SPL';
+        const card = document.createElement('div');
+        card.className = 'token-card';
+        card.innerHTML = `<b>${mint}</b><span class='token-type'>${programUsed}</span><br>Qtd: ${uiAmount} • Decimals: ${decimals}`;
+        tokenListDiv.appendChild(card);
+      }catch(e){
+        pushLog('ERROR', 'Erro processando token entry: '+(e.message||e));
+      }
+    }
+
+    pushLog('INFO','Tokens atualizados');
+  }catch(e){
+    pushLog('ERROR','refreshTokens failed: '+(e.message||e));
+  }
+}
+
+// send token with corrected ATA derivation & program selection
+async function sendToken(){
+  try{
+    if(!walletPubkey){ pushLog('ERROR','Conecte a carteira primeiro'); return; }
+    await ensureConnection();
+    const mintAddr = (mintInput.value || '').trim();
+    const dest = (destInput.value || '').trim();
+    const amountStr = (amountInput.value || '').trim();
+    const memoText = (memoInput.value || '').trim();
+
+    if(!mintAddr || !dest || !amountStr){ pushLog('ERROR','Campos incompletos'); alert('Preencha mint, destino e quantidade'); return; }
+
+    // parse
+    const toPub = new PublicKey(dest);
+    const mintPub = new PublicKey(mintAddr);
+    const decimals = await getMintDecimals(mintAddr);
+    // compute integer amount (as BigInt to be safe)
+    // compute amount * 10^decimals using BigInt
+    const parts = amountStr.split('.');
+    let integerUnits = BigInt(0);
+    if(parts.length === 1){
+      integerUnits = BigInt(parts[0]) * (BigInt(10) ** BigInt(decimals));
+    } else {
+      const whole = parts[0] === '' ? '0' : parts[0];
+      const frac = parts[1].slice(0, decimals).padEnd(decimals, '0');
+      integerUnits = BigInt(whole) * (BigInt(10) ** BigInt(decimals)) + BigInt(frac);
+    }
+
+    // detect program owner for mint (SPL vs SPL-2022)
+    const tokenProgram = await detectProgram(mintAddr);
+    const is2022 = tokenProgram.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58();
+    pushLog('INFO', `Token program used for mint ${mintAddr}: ${is2022 ? 'SPL-2022' : 'SPL'}`);
+
+    // select associated token program id (spl-token may expose a 2022 assoc id)
+    let associatedProgramId = ASSOCIATED_TOKEN_PROGRAM_ID;
+    // some spl-token bundles expose ASSOCIATED_TOKEN_PROGRAM_ID_2022; check safely
+    if(typeof window !== 'undefined' && window !== null){
+      // try to access exported symbol if present on global (not always)
+      try{
+        if(typeof ASSOCIATED_TOKEN_PROGRAM_ID !== 'undefined' && !associatedProgramId){
+          associatedProgramId = ASSOCIATED_TOKEN_PROGRAM_ID;
+        }
+      }catch(e){}
+    }
+
+    // Use getAssociatedTokenAddress with explicit program IDs if available (5-arg form)
+    let fromAta, toAta;
+    try{
+      if(getAssociatedTokenAddress.length >= 5){
+        fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey, false, tokenProgram, associatedProgramId);
+        toAta = await getAssociatedTokenAddress(mintPub, toPub, false, tokenProgram, associatedProgramId);
+      } else {
+        fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey, false, tokenProgram);
+        toAta = await getAssociatedTokenAddress(mintPub, toPub, false, tokenProgram);
+      }
+    }catch(e){
+      pushLog('ERROR','Erro derivando ATAs: '+(e.message||e));
+      // fallback: try without passing program (best effort)
+      fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey);
+      toAta = await getAssociatedTokenAddress(mintPub, toPub);
+    }
+
+    pushLog('INFO', `From ATA: ${fromAta.toString()}  To ATA: ${toAta.toString()}`);
+
+    // create transaction
+    const tx = new Transaction();
+
+    // check if toAta exists
+    const toInfo = await connection.getAccountInfo(toAta);
+    if(!toInfo){
+      pushLog('INFO','Destinatário não tem ATA — adicionando instrução de criação de ATA');
+      // create ATA instruction using proper signature if available
+      try{
+        if(createAssociatedTokenAccountInstruction.length >= 6){
+          // signature: payer, associatedToken, owner, mint, tokenProgram, associatedProgram
+          tx.add(createAssociatedTokenAccountInstruction(walletPubkey, toAta, toPub, mintPub, tokenProgram, associatedProgramId));
+        } else {
+          // older signature: payer, associatedToken, owner, mint
+          tx.add(createAssociatedTokenAccountInstruction(walletPubkey, toAta, toPub, mintPub));
+        }
+      }catch(e){
+        pushLog('ERROR','Erro criando ATA instruction: '+(e.message||e));
+        throw e;
+      }
+    }
+
+    // add transfer instruction (use tokenProgram param if supported)
+    try{
+      if(createTransferInstruction.length >= 6){
+        tx.add(createTransferInstruction(fromAta, toAta, walletPubkey, integerUnits, [], tokenProgram));
+      } else {
+        // older signature ignoring tokenProgram param
+        tx.add(createTransferInstruction(fromAta, toAta, walletPubkey, integerUnits));
+      }
+    }catch(e){
+      pushLog('ERROR','Erro criando transfer instruction: '+(e.message||e));
+      throw e;
+    }
+
+    // memo optional
+    if(memoText){
+      tx.add(new TransactionInstruction({
+        keys: [],
+        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+        data: Buffer.from(memoText, 'utf8')
+      }));
+    }
+
+    // set recent blockhash & fee payer
+    const latest = await connection.getLatestBlockhash('finalized');
+    tx.recentBlockhash = latest.blockhash;
+    tx.feePayer = walletPubkey;
+
+    // sign & send
+    // prefer signTransaction for Phantom
+    let signed;
+    try{
+      signed = await window.solana.signTransaction(tx);
+    }catch(e){
+      // If wallet returned an error when signing, show message
+      pushLog('ERROR','Assinatura cancelada/erro: ' + (e.message || e));
+      return;
+    }
+
+    // simulate first to catch errors and capture logs
+    try{
+      const sim = await connection.simulateTransaction(signed);
+      if(sim && sim.value && sim.value.err){
+        pushLog('ERROR','Simulation failed before send: ' + JSON.stringify(sim.value.err));
+        if(sim.value.logs) pushLog('INFO','Simulation logs:\\n' + sim.value.logs.join('\\n'));
+        // still attempt to send? we stop to avoid bad tx
+        return;
+      }
+    }catch(simE){
+      pushLog('WARN','simulateTransaction error: '+(simE.message||simE));
+    }
+
+    const raw = signed.serialize();
+    const sig = await connection.sendRawTransaction(raw);
+    pushLog('TX', `Transação enviada: ${sig}`);
+    // confirm
+    const conf = await connection.confirmTransaction(sig, 'confirmed');
+    if(conf.value && conf.value.err){
+      pushLog('ERROR','Transaction failed after send: ' + JSON.stringify(conf.value.err));
+      try{
+        const logs = await connection.getTransaction(sig, {commitment:'confirmed'});
+        pushLog('INFO', 'getTransaction returned: ' + JSON.stringify(logs?.meta?.logMessages || logs));
+      }catch(e){ /* ignore */ }
+    } else {
+      pushLog('TX','Transação confirmada: ' + sig);
+      // refresh
+      setTimeout(refreshTokens, 2000);
+    }
+
+  }catch(e){
+    pushLog('ERROR', 'sendToken failed: ' + (e.message || e));
+    // if it's a SendTransactionError with logs, print them (some libs throw with .logs)
+    try{ if(e.logs) pushLog('INFO', 'Error logs:\\n' + JSON.stringify(e.logs)); }catch(_){}
+  }
+}
+
+// wire events
+btnConnect.onclick = connectWallet;
+btnRefresh.onclick = refreshTokens;
+btnSend.onclick = sendToken;
+
+// init
+(async function(){ await ensureConnection(); })();
+
 </script>
 </body>
 </html>
