@@ -1,426 +1,622 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Solana Wallet Toolkit v5.3</title>
-<meta name="description" content="d'Apps Tools" />
-<meta name="author" content="Dev Twenty Seven" />
-<link rel="icon" href="/assets/icons/27-mini-icon.png" type="image/png">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Solana Wallet Toolkit — v2</title>
 <style>
-body{background-color:#000;color:#00ffb7;font-family:monospace;padding:20px}
-h2{color:#00ffb7}
-input,select,button{background:#111;color:#00ffb7;border:1px solid #00ffb7;border-radius:6px;padding:6px 10px;margin:4px}
-button{cursor:pointer;font-weight:bold}
-button:hover{background:#00ffb7;color:#000}
-#logs{white-space:pre-wrap;font-size:13px;margin-top:10px}
-.log-INFO{color:#00ffb7}.log-ERROR{color:#ff6060}.log-TX{color:#3affff}
-.token-card{border:1px solid #00ffb7;border-radius:8px;padding:6px;margin:5px 0;background:#111}
-.token-type{float:right;color:#3affff}
-.small{font-size:13px;color:#39ffb5cc}
-.footer{margin-top:12px;color:#8fb7a3;font-size:12px}
+  :root{--bg:#000;--panel:#071018;--muted:#9fb2d0;--accent:#00ff00;--accent-2:#00ff99;--danger:#ff6b6b}
+  html,body{height:100%}
+  body{font-family:Inter,Arial,Helvetica,sans-serif;margin:0;padding:0;background:var(--bg);color:#e6eef8;display:flex;flex-direction:column;min-height:100vh;}
+  .app{max-width:1100px;margin:20px auto;padding:18px;box-sizing:border-box;width:95%}
+  .top{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .panel{background:rgba(0,0,0,0.55);border:1px solid rgba(0,255,0,0.12);padding:12px;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6)}
+  .small{font-size:13px;color:var(--muted)}
+  .muted{color:#91a7bf}
+  .accent{color:var(--accent);font-weight:700}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1 1 300px;min-width:260px}
+  .button{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer}
+  .button.primary{background:linear-gradient(90deg,rgba(0,255,153,0.08),rgba(0,255,153,0.03));border-color:var(--accent-2)}
+  .button.danger{border-color:var(--danger);color:var(--danger)}
+  #addrDisplay{cursor:pointer;color:var(--accent)}
+  #qrcode{width:72px;height:72px;border-radius:8px;background:#081018;padding:6px}
+  nav.tabs{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  nav.tabs button{padding:8px 12px;border-radius:8px;border:1px solid rgba(0,255,0,0.08);background:transparent;color:var(--muted);cursor:pointer}
+  nav.tabs button.active{background:linear-gradient(90deg,rgba(0,255,153,0.06),rgba(0,255,153,0.02));color:var(--accent);border-color:var(--accent-2)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid rgba(0,255,0,0.03);text-align:left;font-size:14px}
+  .token-icon{width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.03)}
+  .clickable{cursor:pointer}
+  .toast{position:fixed;right:20px;bottom:20px;padding:12px 16px;border-radius:8px;background:#08121a;color:#cfeff1;box-shadow:0 8px 30px rgba(0,0,0,0.6);z-index:9999}
+  .logs{height:160px;overflow:auto;background:rgba(0,0,0,0.4);padding:8px;border-radius:6px;font-size:13px}
+  @media (max-width:800px){
+    .top{flex-direction:column;align-items:stretch}
+    nav.tabs{justify-content:space-around}
+    #qrcode{width:56px;height:56px}
+  }
+  .neon { color:var(--accent); text-shadow:0 0 6px rgba(0,255,0,0.8); }
+  .disabled { opacity: 0.5; pointer-events: none; }
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.1);border-top:2px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-left:8px}
+  @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-<h2>Solana Wallet Toolkit v5.3</h2>
+  <div class="app">
+    <div class="top">
+      <div style="flex:1">
+        <div style="font-family:monospace;color:var(--accent);font-size:24px">Wallet Toolkit</div>
+        <div class="small muted">Ferramenta para Phantom — abra em localhost ou GitHub Pages</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="text-align:right" class="panel">
+          <div class="small">Status</div>
+          <div id="connectStatus" class="neon">Desconectado</div>
+          <div id="addrDisplay" class="small" title="Clique para copiar">--</div>
+        </div>
+        <div class="panel" style="text-align:right;min-width:160px">
+          <div class="small">Saldo</div>
+          <div id="solBalance" style="font-weight:700">-- SOL</div>
+          <div id="usdBalance" class="small">-- USD (Fonte: CoinGecko)</div>
+        </div>
+        <div class="panel" style="text-align:center">
+          <canvas id="qrcode"></canvas>
+        </div>
+      </div>
+    </div>
 
-<div>
-  <label>RPC:</label>
-  <select id="rpcSelect">
-    <option value="https://solana-rpc.publicnode.com" selected>PublicNode (padrão)</option>
-    <option value="https://api.mainnet-beta.solana.com">Mainnet Beta</option>
-    <option value="https://api.devnet.solana.com">Devnet</option>
-    <option value="https://api.testnet.solana.com">Testnet</option>
-    <option value="custom">Custom...</option>
-  </select>
-  <input id="customRpc" placeholder="RPC custom..." style="display:none;width:420px;margin-left:8px" />
-  <button id="btnConnect">Conectar Carteira</button>
-  <button id="btnRefresh">Atualizar Tokens</button>
-</div><br>
+    <nav class="tabs panel" id="tabs">
+      <button data-tab="dashboard" class="active">Dashboard</button>
+      <button data-tab="tokens">Tokens</button>
+      <button data-tab="txs">Transações</button>
+      <button data-tab="send">Enviar</button>
+      <button data-tab="burn">Burn</button>
+      <button data-tab="config">Config</button>
+    </nav>
 
-<div>
-  <label>Token Mint:</label><br>
-  <input id="mintInput" placeholder="Token mint address" size="60"><br>
-  <label>Destino:</label><br>
-  <input id="destInput" placeholder="Carteira destino" size="60"><br>
-  <label>Quantidade:</label><br>
-  <input id="amountInput" placeholder="Quantidade"><br>
-  <label>Memo (opcional):</label><br>
-  <input id="memoInput" placeholder="Texto memo" size="60"><br>
-  <button id="btnSend">Enviar Token</button>
-</div>
+    <div id="content" style="margin-top:12px">
+      <div id="tab-dashboard" class="panel tabpanel">
+        <div class="row">
+          <div class="col panel">
+            <div class="small">Rede / RPC</div>
+            <select id="rpcSelect" style="width:100%;margin-top:8px">
+              <option value="https://api.devnet.solana.com">Devnet</option>
+              <option value="https://api.testnet.solana.com">Testnet</option>
+              <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
+              <option value="custom">Custom RPC</option>
+            </select>
+            <input id="customRpc" placeholder="https://..." style="margin-top:8px;display:none;width:100%"/>
+            <div style="margin-top:12px">
+              <button id="btnConnect" class="button primary">Conectar Phantom</button>
+              <button id="btnDisconnect" class="button" style="margin-left:8px">Desconectar</button>
+            </div>
+          </div>
 
-<h3>Tokens:</h3>
-<div id="tokenList"></div>
+          <div class="col panel">
+            <div class="small">Resumo</div>
+            <div id="summary" style="margin-top:8px">
+              <div class="small">Preço SOL (USD): <span id="solPrice">--</span></div>
+              <div class="small">Tokens totais: <span id="totalTokens">--</span></div>
+              <div class="small">Valor total (USD): <span id="portfolioUSD">--</span></div>
+              <div class="small">Última atualização: <span id="lastUpdate">--</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<div id="logs"></div>
+      <div id="tab-tokens" class="panel tabpanel" style="display:none">
+        <div class="small">Lista de tokens (auto-refresh a cada 2.7s)</div>
+        <div style="overflow:auto;margin-top:10px">
+          <table id="tokenTable">
+            <thead><tr><th></th><th>Ticker</th><th>Nome</th><th>Quantidade</th><th>Valor (SOL)</th><th>Valor (USD)</th><th>Mint</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
 
-<div class="footer">Nota: teste em Devnet antes de operar em Mainnet. PublicNode é o padrão.</div>
+      <div id="tab-txs" class="panel tabpanel" style="display:none">
+        <div class="small">Transações recentes</div>
+        <div id="txList" style="margin-top:8px"></div>
+      </div>
 
-<script type="module">
-/*
-  solana_wallet_toolkit_v5.3
-  - Detecta SPL vs SPL-2022 corretamente
-  - Usa getAssociatedTokenAddress with tokenProgram & assocProgram when available
-  - Reads decimals properly and computes token amount
-  - Adds simulation logs on failure
+      <div id="tab-send" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">Tipo</div>
+            <select id="sendType" style="width:100%;margin-top:6px"><option value="SOL">SOL</option><option value="TOKEN">Token SPL</option></select>
+            <div class="small" style="margin-top:8px">Token (se aplicável)</div>
+            <select id="tokenSelect" style="width:100%;margin-top:6px"><option value="">— selecione token —</option></select>
+            <div style="margin-top:8px" class="small">Destinatários (uma linha = 1 destino). CSV: address,amount</div>
+            <textarea id="targetAddrs" rows="6" style="width:100%;margin-top:6px" placeholder="Uma linha = um endereço (ou address,amount)"></textarea>
+            <div style="margin-top:8px" class="small">Quantidade (mesma quantia)</div>
+            <input id="amountInput" placeholder="ex: 0.5" style="width:100%;margin-top:6px"/>
+            <div class="small" style="margin-top:8px">Memo (opcional)</div>
+            <input id="memoInput" placeholder="observação" style="width:100%;margin-top:6px"/>
+            <div style="margin-top:10px">
+              <button id="btnSend" class="button primary">Enviar (mesma quantia)</button>
+              <button id="btnAirdropCsv" class="button" style="margin-left:8px">Enviar CSV</button>
+            </div>
+            <div id="sendLog" class="small muted" style="margin-top:8px"></div>
+          </div>
+
+          <div class="col">
+            <div class="small">Ações rápidas (devnet)</div>
+            <button id="btnRequestAirdrop" class="button">Pedir Airdrop devnet (1 SOL)</button>
+            <div style="margin-top:12px" class="small">Logs</div>
+            <div class="logs" id="actionLogs"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-burn" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">Escolha token para queimar (native burn)</div>
+            <select id="burnTokenSelect" style="width:100%;margin-top:8px"><option value="">— selecione token —</option></select>
+            <div style="margin-top:8px" class="small">Quantidade</div>
+            <input id="burnAmount" placeholder="quantidade" style="width:100%;margin-top:6px"/>
+            <div style="margin-top:10px">
+              <button id="btnBurn" class="button danger">Burn nativo</button>
+            </div>
+            <div id="burnLog" class="small muted" style="margin-top:8px"></div>
+          </div>
+
+          <div class="col">
+            <div class="small">Informações do mint</div>
+            <div id="mintInfo" style="margin-top:8px" class="small-muted">Selecione um token</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-config" class="panel tabpanel" style="display:none">
+        <div class="row">
+          <div class="col">
+            <div class="small">RPC atual</div>
+            <div id="currentRpc" class="small-muted" style="margin-top:6px">--</div>
+            <div style="margin-top:8px" class="small">Auto-refresh: 2.7s</div>
+            <div style="margin-top:8px" class="small">Use RPCs dedicados para evitar rate limits</div>
+          </div>
+          <div class="col">
+            <div class="small">Logs principais</div>
+            <div class="logs" id="mainLogs"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:24px"></div>
+    <div class="small muted" style="text-align:center">Abra em <b>localhost</b> ou publique em <b>GitHub Pages</b>. Não rode em previews iframe.</div>
+  </div>
+
+  <div id="toastContainer"></div>
+
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://unpkg.com/@solana/spl-token@0.3.8/lib/index.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+<script>
+/* v2 improvements:
+ - Robust Phantom detection with polling
+ - Buttons disabled until Phantom ready
+ - Explicit connect request on click (forces signature)
+ - Fallback deep link hint if Phantom not available
+ - Works on file://, localhost, 0.0.0.0 and GitHub Pages (best-effort)
 */
+(async function(){
+  const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, TransactionInstruction } = solanaWeb3;
+  const spl = splToken;
+  const TOKEN_PROGRAM_ID = spl.TOKEN_PROGRAM_ID;
 
-import {
-  Connection, PublicKey, Transaction, TransactionInstruction, LAMPORTS_PER_SOL
-} from "https://esm.sh/@solana/web3.js@1.95.3";
-import {
-  getAssociatedTokenAddress, createTransferInstruction, createAssociatedTokenAccountInstruction,
-  TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
-} from "https://esm.sh/@solana/spl-token@0.3.0";
+  // UI refs
+  const connectStatus = document.getElementById('connectStatus');
+  const addrDisplay = document.getElementById('addrDisplay');
+  const solBalanceEl = document.getElementById('solBalance');
+  const usdBalanceEl = document.getElementById('usdBalance');
+  const solPriceEl = document.getElementById('solPrice');
+  const totalTokensEl = document.getElementById('totalTokens');
+  const portfolioUSDEl = document.getElementById('portfolioUSD');
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  const rpcSelect = document.getElementById('rpcSelect');
+  const customRpc = document.getElementById('customRpc');
+  const btnConnect = document.getElementById('btnConnect');
+  const btnDisconnect = document.getElementById('btnDisconnect');
+  const qrcodeCanvas = document.getElementById('qrcode');
+  const qr = new QRious({element:qrcodeCanvas,size:120,value:''});
 
-// minimal Buffer polyfill used by some wallets / libs
-window.Buffer = window.Buffer || { from: (s) => new TextEncoder().encode(s) };
+  const tokenTableBody = document.querySelector('#tokenTable tbody');
+  const tokenSelect = document.getElementById('tokenSelect');
+  const burnTokenSelect = document.getElementById('burnTokenSelect');
+  const burnAmountInput = document.getElementById('burnAmount');
+  const mintInfoDiv = document.getElementById('mintInfo');
 
-const logsEl = document.getElementById("logs");
-function pushLog(level, msg){
-  const t = new Date().toISOString();
-  logsEl.innerHTML += `\n${t} [${level}] ${msg}`;
-  console.log(`[${level}]`, msg);
-}
+  const txListDiv = document.getElementById('txList');
 
-const rpcSelect = document.getElementById("rpcSelect");
-const customRpcInput = document.getElementById("customRpc");
-const btnConnect = document.getElementById("btnConnect");
-const btnRefresh = document.getElementById("btnRefresh");
-const btnSend = document.getElementById("btnSend");
-const mintInput = document.getElementById("mintInput");
-const destInput = document.getElementById("destInput");
-const amountInput = document.getElementById("amountInput");
-const memoInput = document.getElementById("memoInput");
-const tokenListDiv = document.getElementById("tokenList");
+  const sendType = document.getElementById('sendType');
+  const targetAddrs = document.getElementById('targetAddrs');
+  const amountInput = document.getElementById('amountInput');
+  const memoInput = document.getElementById('memoInput');
+  const btnSend = document.getElementById('btnSend');
+  const btnAirdropCsv = document.getElementById('btnAirdropCsv');
+  const requestAirdropBtn = document.getElementById('btnRequestAirdrop');
+  const sendLog = document.getElementById('sendLog');
+  const actionLogs = document.getElementById('actionLogs');
+  const burnLog = document.getElementById('burnLog');
+  const mainLogs = document.getElementById('mainLogs');
+  const refreshBalancesBtn = document.getElementById('refreshBalances');
+  const currentRpc = document.getElementById('currentRpc');
 
-let walletPubkey = null;
-let connection = null;
+  // state
+  let connection = new Connection('https://api.devnet.solana.com','confirmed');
+  let wallet = null;
+  let pubkey = null;
+  let solPriceUSD = null;
+  let tokenListCache = null;
+  let autoRefreshHandle = null;
 
-rpcSelect.onchange = () => {
-  customRpcInput.style.display = rpcSelect.value === 'custom' ? 'inline-block' : 'none';
-};
-
-function getRpcUrl(){
-  if(rpcSelect.value === 'custom') return customRpcInput.value.trim() || 'https://solana-rpc.publicnode.com';
-  return rpcSelect.value;
-}
-
-async function ensureConnection(){
-  const rpc = getRpcUrl();
-  if(!connection || connection.rpcEndpoint !== rpc){
-    connection = new Connection(rpc, "confirmed");
-    try{
-      await connection.getVersion();
-      pushLog('INFO', `Conectado RPC: ${rpc}`);
-    }catch(e){
-      pushLog('ERROR', `Falha RPC ${rpc}: ${e.message||e}. Fallback para PublicNode.`);
-      connection = new Connection('https://solana-rpc.publicnode.com', 'confirmed');
-      await connection.getVersion();
-    }
+  function logMain(...args){ const s = '['+new Date().toLocaleTimeString()+'] '+args.join(' ')+ '\n'; mainLogs.textContent = s + mainLogs.textContent; }
+  function logAction(...args){ const s = '['+new Date().toLocaleTimeString()+'] '+args.join(' ')+ '\n'; actionLogs.textContent = s + actionLogs.textContent; }
+  function toast(msg, t=2400){ const el = document.createElement('div'); el.className='toast'; el.textContent=msg; document.getElementById('toastContainer').appendChild(el); setTimeout(()=>el.remove(), t); }
+  function setDisabled(state){
+    [btnSend, btnAirdropCsv, requestAirdropBtn, btnBurn, document.getElementById('btnRequestAirdrop')].forEach(el=>{ if(!el) return; el.disabled=state; el.classList.toggle('disabled', state); });
   }
-}
 
-// Connect wallet
-async function connectWallet(){
-  try{
-    await ensureConnection();
-    if(!window.solana || !window.solana.isPhantom){ alert('Instale a Phantom Wallet'); return; }
-    const resp = await window.solana.connect();
-    walletPubkey = new PublicKey(resp.publicKey.toString());
-    pushLog('INFO', `Carteira conectada: ${walletPubkey.toBase58()}`);
-    // refresh tokens + balance
-    await refreshTokens();
-  }catch(e){
-    pushLog('ERROR', `Connect wallet failed: ${e.message || e}`);
+  // tabs
+  document.querySelectorAll('nav.tabs button').forEach(b=>{
+    b.addEventListener('click', ()=> {
+      document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.tabpanel').forEach(p=>p.style.display='none');
+      document.getElementById('tab-'+b.dataset.tab).style.display='block';
+    });
+  });
+
+  // phantom detection with polling
+  async function detectPhantom(timeout=5000){
+    const start = Date.now();
+    while(Date.now()-start < timeout){
+      if(window.solana && window.solana.isPhantom) return window.solana;
+      if(window.phantom && window.phantom.solana) return window.phantom.solana;
+      await new Promise(r=>setTimeout(r,200));
+    }
+    return null;
   }
-}
 
-// detect program owner for mint robustly
-async function detectProgram(mintAddr){
-  try{
-    // primary: getAccountInfo (raw)
-    const mintPub = new PublicKey(mintAddr);
-    const info = await connection.getAccountInfo(mintPub);
-    if(info && info.owner){
-      const ownerStr = info.owner.toBase58();
-      pushLog('INFO', `Mint owner: ${ownerStr}`);
-      if(ownerStr === TOKEN_2022_PROGRAM_ID.toBase58()) {
-        pushLog('INFO','Detected token program: SPL-2022');
-        return TOKEN_2022_PROGRAM_ID;
-      }
-      if(ownerStr === TOKEN_PROGRAM_ID.toBase58()) {
-        pushLog('INFO','Detected token program: SPL (classic)');
-        return TOKEN_PROGRAM_ID;
-      }
-      // owner present but unknown
-      pushLog('INFO', 'Mint owner is neither classic nor 2022; defaulting to classic TOKEN_PROGRAM_ID');
-      return TOKEN_PROGRAM_ID;
-    }
-
-    // fallback: parsed account
-    const parsed = await connection.getParsedAccountInfo(mintPub);
-    if(parsed && parsed.value && parsed.value.owner){
-      const ownerStr = parsed.value.owner.toBase58();
-      pushLog('INFO', `Parsed mint owner: ${ownerStr}`);
-      if(ownerStr === TOKEN_2022_PROGRAM_ID.toBase58()) return TOKEN_2022_PROGRAM_ID;
-      return TOKEN_PROGRAM_ID;
-    }
-
-    // if account doesn't exist or owner unknown, assume classic (safe default)
-    pushLog('WARN', 'Mint account info missing — assuming classic SPL program (TOKEN_PROGRAM_ID).');
-    return TOKEN_PROGRAM_ID;
-
-  }catch(e){
-    pushLog('ERROR', `detectProgram failed: ${e.message || e}. Defaulting to TOKEN_PROGRAM_ID`);
-    return TOKEN_PROGRAM_ID;
+  async function loadTokenList(){
+    if(tokenListCache) return tokenListCache;
+    try {
+      const url = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
+      const r = await fetch(url);
+      const j = await r.json();
+      tokenListCache = {};
+      for(const t of j.tokens) tokenListCache[t.address] = t;
+      logMain('Token list loaded: '+Object.keys(tokenListCache).length);
+      return tokenListCache;
+    } catch(e){ logMain('token-list load error', e.message); tokenListCache = {}; return tokenListCache; }
   }
-}
 
-// get decimals safely
-async function getMintDecimals(mintAddr){
-  try{
-    const mintInfo = await connection.getParsedAccountInfo(new PublicKey(mintAddr));
-    const decimals = mintInfo?.value?.data?.parsed?.info?.decimals;
-    if(typeof decimals === 'number') return decimals;
-    // fallback: try raw account inspection: spl-token mint layout has decimals at offset 44 in native layout
-    const raw = await connection.getAccountInfo(new PublicKey(mintAddr));
-    if(raw && raw.data && raw.data.length > 44){
-      return raw.data[44];
-    }
-    pushLog('WARN', 'Decimals não encontrado, usando 9 por padrão');
-    return 9;
-  }catch(e){
-    pushLog('ERROR', `getMintDecimals failed: ${e.message||e}. Using 9`);
-    return 9;
+  async function fetchSOLPrice(){
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+      const j = await r.json();
+      solPriceUSD = j.solana.usd;
+      solPriceEl.textContent = solPriceUSD ? solPriceUSD.toFixed(4) : '--';
+      return solPriceUSD;
+    } catch(e){ logMain('CoinGecko error', e.message); solPriceUSD = null; solPriceEl.textContent='--'; return null; }
   }
-}
 
-// refresh token list (unified, SPL + SPL-2022 together)
-async function refreshTokens(){
-  try{
-    if(!walletPubkey){ pushLog('ERROR','Conecte a carteira primeiro'); return; }
-    await ensureConnection();
-    pushLog('INFO','Atualizando tokens...');
-    tokenListDiv.innerHTML = '';
-    const classicAccounts = await connection.getParsedTokenAccountsByOwner(walletPubkey, { programId: TOKEN_PROGRAM_ID });
-    const token2022Accounts = await connection.getParsedTokenAccountsByOwner(walletPubkey, { programId: TOKEN_2022_PROGRAM_ID });
-    const combined = [...(classicAccounts?.value || []), ...(token2022Accounts?.value || [])];
+  // RPC change
+  rpcSelect.addEventListener('change', ()=>{
+    if(rpcSelect.value === 'custom'){ customRpc.style.display='block'; return; }
+    customRpc.style.display='none';
+    connection = new Connection(rpcSelect.value,'confirmed');
+    currentRpc.textContent = rpcSelect.value;
+    logMain('RPC switched to '+rpcSelect.value);
+    if(pubkey) refreshAll();
+  });
+  customRpc.addEventListener('change', ()=>{ if(customRpc.value){ connection = new Connection(customRpc.value,'confirmed'); currentRpc.textContent = customRpc.value; if(pubkey) refreshAll(); } });
 
-    // show SOL balance
-    try{
-      const lamports = await connection.getBalance(walletPubkey);
-      const sol = lamports / LAMPORTS_PER_SOL;
-      // fetch price quickly (non-blocking)
-      let usd = '';
-      try{
-        const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const j = await r.json();
-        const price = j?.solana?.usd || 0;
-        usd = ` (~$${(sol*price).toFixed(2)})`;
-      }catch(e){ /* ignore price error */ }
-      pushLog('INFO', `Saldo SOL: ${sol.toFixed(6)}${usd}`);
-    }catch(e){ pushLog('ERROR', 'Erro lendo saldo SOL: '+(e.message||e)); }
+  // copy helper
+  async function copy(text, label='copiado'){ try{ await navigator.clipboard.writeText(text); toast(label); }catch(e){ toast('falha copiar'); } }
 
-    if(combined.length === 0){
-      tokenListDiv.innerHTML = '<div class="small">Nenhum token encontrado</div>';
-      pushLog('INFO','Tokens atualizados (nenhum token)');
-      return;
-    }
-
-    for(const a of combined){
-      try{
-        const parsed = a.account.data.parsed;
-        const info = parsed.info;
-        const mint = info.mint;
-        const decimals = info.tokenAmount?.decimals ?? 0;
-        const uiAmount = info.tokenAmount?.uiAmountString ?? String(info.tokenAmount?.uiAmount ?? 0);
-        const programUsed = a.account.owner.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58() ? 'SPL-2022' : 'SPL';
-        const card = document.createElement('div');
-        card.className = 'token-card';
-        card.innerHTML = `<b>${mint}</b><span class='token-type'>${programUsed}</span><br>Qtd: ${uiAmount} • Decimals: ${decimals}`;
-        tokenListDiv.appendChild(card);
-      }catch(e){
-        pushLog('ERROR', 'Erro processando token entry: '+(e.message||e));
-      }
-    }
-
-    pushLog('INFO','Tokens atualizados');
-  }catch(e){
-    pushLog('ERROR','refreshTokens failed: '+(e.message||e));
-  }
-}
-
-// send token with corrected ATA derivation & program selection
-async function sendToken(){
-  try{
-    if(!walletPubkey){ pushLog('ERROR','Conecte a carteira primeiro'); return; }
-    await ensureConnection();
-    const mintAddr = (mintInput.value || '').trim();
-    const dest = (destInput.value || '').trim();
-    const amountStr = (amountInput.value || '').trim();
-    const memoText = (memoInput.value || '').trim();
-
-    if(!mintAddr || !dest || !amountStr){ pushLog('ERROR','Campos incompletos'); alert('Preencha mint, destino e quantidade'); return; }
-
-    // parse
-    const toPub = new PublicKey(dest);
-    const mintPub = new PublicKey(mintAddr);
-    const decimals = await getMintDecimals(mintAddr);
-    // compute integer amount (as BigInt to be safe)
-    // compute amount * 10^decimals using BigInt
-    const parts = amountStr.split('.');
-    let integerUnits = BigInt(0);
-    if(parts.length === 1){
-      integerUnits = BigInt(parts[0]) * (BigInt(10) ** BigInt(decimals));
-    } else {
-      const whole = parts[0] === '' ? '0' : parts[0];
-      const frac = parts[1].slice(0, decimals).padEnd(decimals, '0');
-      integerUnits = BigInt(whole) * (BigInt(10) ** BigInt(decimals)) + BigInt(frac);
-    }
-
-    // detect program owner for mint (SPL vs SPL-2022)
-    const tokenProgram = await detectProgram(mintAddr);
-    const is2022 = tokenProgram.toBase58() === TOKEN_2022_PROGRAM_ID.toBase58();
-    pushLog('INFO', `Token program used for mint ${mintAddr}: ${is2022 ? 'SPL-2022' : 'SPL'}`);
-
-    // select associated token program id (spl-token may expose a 2022 assoc id)
-    let associatedProgramId = ASSOCIATED_TOKEN_PROGRAM_ID;
-    // some spl-token bundles expose ASSOCIATED_TOKEN_PROGRAM_ID_2022; check safely
-    if(typeof window !== 'undefined' && window !== null){
-      // try to access exported symbol if present on global (not always)
-      try{
-        if(typeof ASSOCIATED_TOKEN_PROGRAM_ID !== 'undefined' && !associatedProgramId){
-          associatedProgramId = ASSOCIATED_TOKEN_PROGRAM_ID;
-        }
-      }catch(e){}
-    }
-
-    // Use getAssociatedTokenAddress with explicit program IDs if available (5-arg form)
-    let fromAta, toAta;
-    try{
-      if(getAssociatedTokenAddress.length >= 5){
-        fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey, false, tokenProgram, associatedProgramId);
-        toAta = await getAssociatedTokenAddress(mintPub, toPub, false, tokenProgram, associatedProgramId);
-      } else {
-        fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey, false, tokenProgram);
-        toAta = await getAssociatedTokenAddress(mintPub, toPub, false, tokenProgram);
-      }
-    }catch(e){
-      pushLog('ERROR','Erro derivando ATAs: '+(e.message||e));
-      // fallback: try without passing program (best effort)
-      fromAta = await getAssociatedTokenAddress(mintPub, walletPubkey);
-      toAta = await getAssociatedTokenAddress(mintPub, toPub);
-    }
-
-    pushLog('INFO', `From ATA: ${fromAta.toString()}  To ATA: ${toAta.toString()}`);
-
-    // create transaction
-    const tx = new Transaction();
-
-    // check if toAta exists
-    const toInfo = await connection.getAccountInfo(toAta);
-    if(!toInfo){
-      pushLog('INFO','Destinatário não tem ATA — adicionando instrução de criação de ATA');
-      // create ATA instruction using proper signature if available
-      try{
-        if(createAssociatedTokenAccountInstruction.length >= 6){
-          // signature: payer, associatedToken, owner, mint, tokenProgram, associatedProgram
-          tx.add(createAssociatedTokenAccountInstruction(walletPubkey, toAta, toPub, mintPub, tokenProgram, associatedProgramId));
-        } else {
-          // older signature: payer, associatedToken, owner, mint
-          tx.add(createAssociatedTokenAccountInstruction(walletPubkey, toAta, toPub, mintPub));
-        }
-      }catch(e){
-        pushLog('ERROR','Erro criando ATA instruction: '+(e.message||e));
-        throw e;
-      }
-    }
-
-    // add transfer instruction (use tokenProgram param if supported)
-    try{
-      if(createTransferInstruction.length >= 6){
-        tx.add(createTransferInstruction(fromAta, toAta, walletPubkey, integerUnits, [], tokenProgram));
-      } else {
-        // older signature ignoring tokenProgram param
-        tx.add(createTransferInstruction(fromAta, toAta, walletPubkey, integerUnits));
-      }
-    }catch(e){
-      pushLog('ERROR','Erro criando transfer instruction: '+(e.message||e));
-      throw e;
-    }
-
-    // memo optional
-    if(memoText){
-      tx.add(new TransactionInstruction({
-        keys: [],
-        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
-        data: Buffer.from(memoText, 'utf8')
-      }));
-    }
-
-    // set recent blockhash & fee payer
-    const latest = await connection.getLatestBlockhash('finalized');
-    tx.recentBlockhash = latest.blockhash;
-    tx.feePayer = walletPubkey;
-
-    // sign & send
-    // prefer signTransaction for Phantom
-    let signed;
-    try{
-      signed = await window.solana.signTransaction(tx);
-    }catch(e){
-      // If wallet returned an error when signing, show message
-      pushLog('ERROR','Assinatura cancelada/erro: ' + (e.message || e));
-      return;
-    }
-
-    // simulate first to catch errors and capture logs
-    try{
-      const sim = await connection.simulateTransaction(signed);
-      if(sim && sim.value && sim.value.err){
-        pushLog('ERROR','Simulation failed before send: ' + JSON.stringify(sim.value.err));
-        if(sim.value.logs) pushLog('INFO','Simulation logs:\\n' + sim.value.logs.join('\\n'));
-        // still attempt to send? we stop to avoid bad tx
+  // connect logic
+  btnConnect.addEventListener('click', async ()=>{
+    try {
+      btnConnect.disabled = true;
+      btnConnect.innerHTML = 'Conectando <span class="spinner"></span>';
+      const ph = await detectPhantom(4000);
+      if(!ph){
+        btnConnect.innerHTML = 'Conectar Phantom';
+        btnConnect.disabled = false;
+        toast('Phantom não detectado. Abra o navegador com a extensão Phantom instalada.');
+        logMain('Phantom not found');
         return;
       }
-    }catch(simE){
-      pushLog('WARN','simulateTransaction error: '+(simE.message||simE));
+      wallet = ph;
+      // Force the wallet to ask for signature every time by calling connect with onlyIfTrusted:false
+      const resp = await wallet.connect({ onlyIfTrusted:false });
+      pubkey = resp.publicKey;
+      connectStatus.textContent = 'Conectado';
+      addrDisplay.textContent = pubkey.toString();
+      addrDisplay.onclick = ()=>copy(pubkey.toString(),'Endereço copiado');
+      qr.value = pubkey.toString();
+      toast('Carteira conectada');
+      logMain('Connected ' + pubkey.toString());
+      await loadTokenList();
+      await fetchSOLPrice();
+      await refreshAll();
+      startAutoRefresh();
+      wallet.on('accountChanged', async (pk)=>{ if(pk){ pubkey = pk; addrDisplay.textContent = pubkey.toString(); qr.value = pubkey.toString(); await refreshAll(); } else { pubkey = null; connectStatus.textContent='Desconectado'; addrDisplay.textContent='--'; stopAutoRefresh(); } });
+    } catch(e){
+      logMain('connect error '+(e.message||e));
+      toast('Erro conectar: '+(e.message||e));
+    } finally {
+      btnConnect.disabled = false;
+      btnConnect.innerHTML = 'Conectar Phantom';
     }
+  });
 
-    const raw = signed.serialize();
-    const sig = await connection.sendRawTransaction(raw);
-    pushLog('TX', `Transação enviada: ${sig}`);
-    // confirm
-    const conf = await connection.confirmTransaction(sig, 'confirmed');
-    if(conf.value && conf.value.err){
-      pushLog('ERROR','Transaction failed after send: ' + JSON.stringify(conf.value.err));
-      try{
-        const logs = await connection.getTransaction(sig, {commitment:'confirmed'});
-        pushLog('INFO', 'getTransaction returned: ' + JSON.stringify(logs?.meta?.logMessages || logs));
-      }catch(e){ /* ignore */ }
-    } else {
-      pushLog('TX','Transação confirmada: ' + sig);
-      // refresh
-      setTimeout(refreshTokens, 2000);
+  btnDisconnect.addEventListener('click', async ()=>{
+    try{
+      if(wallet && wallet.disconnect) await wallet.disconnect();
+      pubkey = null;
+      connectStatus.textContent='Desconectado';
+      addrDisplay.textContent='--';
+      qr.value = '';
+      stopAutoRefresh();
+      toast('Desconectado');
+    }catch(e){ logMain('disconnect error '+(e.message||e)); toast('Erro desconectar'); }
+  });
+
+  // tokens
+  async function listTokens(){
+    tokenTableBody.innerHTML = '<tr><td colspan="7" class="small muted">Carregando...</td></tr>';
+    tokenSelect.innerHTML = '<option value="">— selecione token —</option>';
+    burnTokenSelect.innerHTML = '<option value="">— selecione token —</option>';
+    if(!pubkey) { tokenTableBody.innerHTML='<tr><td colspan="7">Conecte a wallet</td></tr>'; return; }
+    try {
+      const res = await connection.getParsedTokenAccountsByOwner(pubkey, { programId: TOKEN_PROGRAM_ID });
+      const tokens = [];
+      for(const v of res.value){
+        const info = v.account.data.parsed.info;
+        const mint = info.mint;
+        const amount = info.tokenAmount.uiAmount || 0;
+        const decimals = info.tokenAmount.decimals || 0;
+        tokens.push({mint,amount,decimals,account:v.pubkey.toString()});
+      }
+      const cc = tokenListCache || await loadTokenList();
+      const coingeckoIds = [];
+      for(const t of tokens){
+        const meta = cc[t.mint];
+        if(meta && meta.extensions && meta.extensions.coingeckoId) coingeckoIds.push(meta.extensions.coingeckoId);
+      }
+      let tokenPrices = {};
+      if(coingeckoIds.length){
+        const ids = Array.from(new Set(coingeckoIds)).join(',');
+        try {
+          const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd`);
+          tokenPrices = await r.json();
+        } catch(e){ logMain('token price fetch error '+(e.message||e)); tokenPrices = {}; }
+      }
+      // render
+      tokenTableBody.innerHTML = '';
+      let portfolioUSD = 0;
+      let countTokens = 0;
+      for(const t of tokens){
+        const meta = cc[t.mint];
+        const symbol = meta ? meta.symbol : (t.mint.slice(0,6)+'...');
+        const name = meta ? meta.name : '';
+        const icon = meta && meta.logoURI ? meta.logoURI : '';
+        let usdPrice = null;
+        if(meta && meta.extensions && meta.extensions.coingeckoId && tokenPrices[meta.extensions.coingeckoId]) usdPrice = tokenPrices[meta.extensions.coingeckoId].usd;
+        const valueUSD = (usdPrice ? usdPrice * t.amount : null);
+        const valueSOL = (valueUSD && solPriceUSD) ? (valueUSD / solPriceUSD) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${icon?'<img src="'+icon+'" class="token-icon" onerror="this.style.display=\\'none\\'"/>':''}</td>
+          <td class="clickable">${symbol}</td>
+          <td>${name||'—'}</td>
+          <td>${t.amount.toLocaleString()}</td>
+          <td>${valueSOL!==null?valueSOL.toFixed(6):'—'}</td>
+          <td>${valueUSD!==null?('$'+valueUSD.toFixed(4)):'—'}</td>
+          <td style="font-size:12px;color:var(--muted)">${t.mint}</td>
+        `;
+        tr.querySelector('.clickable').addEventListener('click', ()=>{ copy(t.mint,'Mint copiado'); });
+        tokenTableBody.appendChild(tr);
+        if(t.amount>0){
+          const opt = document.createElement('option'); opt.value=JSON.stringify({mint:t.mint,account:t.account,decimals:t.decimals}); opt.textContent = `${symbol} — ${t.amount}`;
+          tokenSelect.appendChild(opt);
+          burnTokenSelect.appendChild(opt.cloneNode(true));
+        }
+        if(valueUSD) portfolioUSD += valueUSD;
+        countTokens += 1;
+      }
+      totalTokensEl.textContent = countTokens;
+      portfolioUSDEl.textContent = portfolioUSD ? ('$'+portfolioUSD.toFixed(2)) : '--';
+    } catch(e){
+      tokenTableBody.innerHTML = '<tr><td colspan="7">Erro carregando tokens</td></tr>';
+      logMain('listTokens error '+(e.message||e));
     }
-
-  }catch(e){
-    pushLog('ERROR', 'sendToken failed: ' + (e.message || e));
-    // if it's a SendTransactionError with logs, print them (some libs throw with .logs)
-    try{ if(e.logs) pushLog('INFO', 'Error logs:\\n' + JSON.stringify(e.logs)); }catch(_){}
   }
-}
 
-// wire events
-btnConnect.onclick = connectWallet;
-btnRefresh.onclick = refreshTokens;
-btnSend.onclick = sendToken;
+  async function listTxs(){
+    txListDiv.innerHTML = 'Carregando...';
+    if(!pubkey) { txListDiv.innerHTML = 'Conecte a wallet'; return; }
+    try {
+      const sigs = await connection.getSignaturesForAddress(pubkey,{limit:15});
+      if(!sigs||!sigs.length){ txListDiv.innerHTML='Sem transações recentes'; return; }
+      txListDiv.innerHTML = sigs.map(s=> {
+        const status = s.err ? '❌' : '✅';
+        const time = s.blockTime ? new Date(s.blockTime*1000).toLocaleString() : '-';
+        const short = s.signature.slice(0,12)+'...';
+        const cluster = rpcSelect.value.includes('devnet') ? 'devnet' : (rpcSelect.value.includes('testnet')?'testnet':'mainnet');
+        const link = `https://explorer.solana.com/tx/${s.signature}?cluster=${cluster}`;
+        return `<div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.02)"><a href="${link}" target="_blank" style="color:var(--accent)">${short}</a> — ${status} <div class="small muted">${time}</div></div>`;
+      }).join('');
+    } catch(e){ txListDiv.innerHTML = 'Erro carregando txs'; logMain('listTxs err '+(e.message||e)); }
+  }
 
-// init
-(async function(){ await ensureConnection(); })();
+  async function refreshAll(){
+    if(!pubkey) return;
+    try {
+      await fetchSOLPrice();
+      const lam = await connection.getBalance(pubkey);
+      const sol = lam / LAMPORTS_PER_SOL;
+      solBalanceEl.textContent = sol.toFixed(6) + ' SOL';
+      usdBalanceEl.textContent = solPriceUSD ? ('$'+(sol*solPriceUSD).toFixed(2)) : '--';
+      lastUpdateEl.textContent = new Date().toLocaleTimeString();
+      await listTokens();
+      await listTxs();
+    } catch(e){ logMain('refreshAll err '+(e.message||e)); }
+  }
 
+  function startAutoRefresh(){ stopAutoRefresh(); autoRefreshHandle = setInterval(()=>{ if(pubkey) refreshAll().catch(e=>logMain('auto refresh '+(e.message||e))); }, 2700); }
+  function stopAutoRefresh(){ if(autoRefreshHandle) clearInterval(autoRefreshHandle); autoRefreshHandle = null; }
+
+  // send functions
+  async function sendSOL(toPub, amountSol, memo){
+    const tx = new Transaction().add(SystemProgram.transfer({
+      fromPubkey: pubkey,
+      toPubkey: toPub,
+      lamports: Math.round(amountSol * LAMPORTS_PER_SOL)
+    }));
+    if(memo) tx.add(new TransactionInstruction({keys:[],programId:new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),data:Buffer.from(memo)}));
+    const signed = await wallet.signAndSendTransaction(tx);
+    return signed.signature;
+  }
+
+  async function sendToken(info, toAddr, amount, memo){
+    const mint = new PublicKey(info.mint);
+    const fromAcc = new PublicKey(info.account);
+    const decimals = parseInt(info.decimals || 0);
+    const toPub = new PublicKey(toAddr);
+    const toATA = await spl.getAssociatedTokenAddress(mint, toPub);
+    const ataInfo = await connection.getAccountInfo(toATA);
+    const tx = new Transaction();
+    if(!ataInfo) tx.add(spl.createAssociatedTokenAccountInstruction(pubkey, toATA, toPub, mint));
+    const rawAmount = Math.round(amount * (10 ** decimals));
+    tx.add(spl.createTransferInstruction(fromAcc, toATA, pubkey, rawAmount, [], TOKEN_PROGRAM_ID));
+    if(memo) tx.add(new TransactionInstruction({keys:[],programId:new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),data:Buffer.from(memo)}));
+    const signed = await wallet.signAndSendTransaction(tx);
+    return signed.signature;
+  }
+
+  btnSend.addEventListener('click', async ()=>{
+    if(!pubkey) return alert('Conecte Phantom');
+    const lines = targetAddrs.value.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(!lines.length) return alert('Inclua destinatários');
+    const amt = parseFloat(amountInput.value);
+    const memo = memoInput.value || null;
+    try {
+      if(sendType.value === 'SOL'){
+        if(isNaN(amt) || amt <= 0) return alert('Quantidade inválida');
+        for(const l of lines){
+          const toStr = l.split(',')[0].trim();
+          const to = new PublicKey(toStr);
+          const sig = await sendSOL(to, amt, memo);
+          sendLog.textContent += `SOL -> ${to.toString()} tx:${sig}\n`;
+          logAction('SOL sent '+sig);
+        }
+      } else {
+        const sel = tokenSelect.value;
+        if(!sel) return alert('Selecione token');
+        const info = JSON.parse(sel);
+        if(isNaN(amt) || amt <= 0) return alert('Quantidade inválida');
+        for(const l of lines){
+          const toStr = l.split(',')[0].trim();
+          const sig = await sendToken(info, toStr, amt, memo);
+          sendLog.textContent += `Token -> ${toStr} tx:${sig}\n`;
+          logAction('Token sent '+sig);
+        }
+      }
+      await refreshAll();
+    } catch(e){ sendLog.textContent += 'Erro: '+(e.message||e)+'\n'; logMain('send err '+(e.message||e)); }
+  });
+
+  btnAirdropCsv.addEventListener('click', async ()=>{
+    if(!pubkey) return alert('Conecte Phantom');
+    const lines = targetAddrs.value.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(!lines.length) return alert('Nada para enviar');
+    try {
+      for(const l of lines){
+        const parts = l.split(',').map(p=>p.trim());
+        if(parts.length<2) continue;
+        const to = parts[0];
+        const amt = parseFloat(parts[1]);
+        if(sendType.value === 'SOL'){
+          const sig = await sendSOL(new PublicKey(to), amt, memoInput.value||null);
+          sendLog.textContent += `SOL -> ${to} tx:${sig}\n`;
+        } else {
+          const info = JSON.parse(tokenSelect.value);
+          const sig = await sendToken(info, to, amt, memoInput.value||null);
+          sendLog.textContent += `Token -> ${to} tx:${sig}\n`;
+        }
+      }
+      await refreshAll();
+    } catch(e){ sendLog.textContent += 'Erro CSV: '+(e.message||e)+'\n'; logMain('airdrop csv err '+(e.message||e)); }
+  });
+
+  requestAirdropBtn.addEventListener('click', async ()=>{
+    if(!pubkey) return alert('Conecte Phantom');
+    if(!rpcSelect.value.includes('devnet')) return alert('Airdrop somente em devnet');
+    try {
+      const sig = await connection.requestAirdrop(pubkey, LAMPORTS_PER_SOL);
+      actionLogs.textContent = '['+new Date().toLocaleTimeString()+'] Airdrop solicitado: '+sig+'\n' + actionLogs.textContent;
+      await connection.confirmTransaction(sig);
+      await refreshAll();
+    } catch(e){ actionLogs.textContent = '['+new Date().toLocaleTimeString()+'] Erro airdrop: '+(e.message||e)+'\n' + actionLogs.textContent; }
+  });
+
+  document.getElementById('btnBurn').addEventListener('click', async ()=>{
+    if(!pubkey) return alert('Conecte Phantom');
+    if(!burnTokenSelect.value) return alert('Selecione token');
+    const info = JSON.parse(burnTokenSelect.value);
+    const amt = parseFloat(burnAmountInput.value);
+    if(isNaN(amt) || amt <=0) return alert('quantia inválida');
+    const decimals = parseInt(info.decimals||0);
+    const raw = Math.round(amt * (10 ** decimals));
+    try {
+      const ix = spl.createBurnInstruction(new PublicKey(info.account), new PublicKey(info.mint), pubkey, raw, [], TOKEN_PROGRAM_ID);
+      const tx = new Transaction().add(ix);
+      const sig = await wallet.signAndSendTransaction(tx);
+      burnLog.textContent = `Burn tx: ${sig.signature}`;
+      logAction('Burn '+sig.signature);
+      await new Promise(r=>setTimeout(r,2500));
+      await refreshAll();
+    } catch(e){ burnLog.textContent = 'Erro burn: '+(e.message||e); logMain('burn err '+(e.message||e)); }
+  });
+
+  burnTokenSelect.addEventListener('change', async ()=>{
+    const v = burnTokenSelect.value;
+    if(!v){ mintInfoDiv.textContent='Selecione um token'; return; }
+    const info = JSON.parse(v);
+    try {
+      const mintAcc = await connection.getParsedAccountInfo(new PublicKey(info.mint));
+      if(mintAcc && mintAcc.value && mintAcc.value.data && mintAcc.value.data.parsed){
+        const p = mintAcc.value.data.parsed.info;
+        mintInfoDiv.innerHTML = `<div class="small">Decimals: ${p.decimals} • Supply: ${p.supply}</div>`;
+      } else mintInfoDiv.textContent = 'Não foi possível ler o mint';
+    } catch(e){ mintInfoDiv.textContent = 'Erro lendo mint'; }
+  });
+
+  // initial phantom detection
+  const ph = await detectPhantom(2000);
+  if(ph){
+    connectStatus.textContent = 'Disponível (clique Conectar)';
+    toast('Phantom disponível — clique Conectar para pedir assinatura');
+  } else {
+    connectStatus.textContent = 'Phantom não detectado';
+    toast('Phantom não detectada. Instale a extensão: https://phantom.app');
+  }
+
+  // initial load resources
+  await loadTokenList();
+  await fetchSOLPrice();
+  currentRpc.textContent = rpcSelect.value;
+
+  // expose for debugging
+  window.walletToolkit = { refreshAll, connection };
+
+})();
 </script>
 </body>
 </html>
