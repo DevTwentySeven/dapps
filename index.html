@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Solana Wallet Toolkit — v2</title>
+<title>Solana Wallet Toolkit</title>
+<meta name="description" content="d'Apps" />
+<meta name="author" content="Dev Twenty Seven" />
+<link rel="icon" href="/assets/icons/27-mini-icon.png" type="image/png">
 <style>
   :root{--bg:#000;--panel:#071018;--muted:#9fb2d0;--accent:#00ff00;--accent-2:#00ff99;--danger:#ff6b6b}
   html,body{height:100%}
@@ -46,7 +49,7 @@
     <div class="top">
       <div style="flex:1">
         <div style="font-family:monospace;color:var(--accent);font-size:24px">Wallet Toolkit</div>
-        <div class="small muted">Ferramenta para Phantom — abra em localhost ou GitHub Pages</div>
+        <div class="small muted">Ferramenta para Phantom â€” abra em localhost ou GitHub Pages</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <div style="text-align:right" class="panel">
@@ -68,7 +71,7 @@
     <nav class="tabs panel" id="tabs">
       <button data-tab="dashboard" class="active">Dashboard</button>
       <button data-tab="tokens">Tokens</button>
-      <button data-tab="txs">Transações</button>
+      <button data-tab="txs">TransaÃ§Ãµes</button>
       <button data-tab="send">Enviar</button>
       <button data-tab="burn">Burn</button>
       <button data-tab="config">Config</button>
@@ -95,10 +98,10 @@
           <div class="col panel">
             <div class="small">Resumo</div>
             <div id="summary" style="margin-top:8px">
-              <div class="small">Preço SOL (USD): <span id="solPrice">--</span></div>
+              <div class="small">PreÃ§o SOL (USD): <span id="solPrice">--</span></div>
               <div class="small">Tokens totais: <span id="totalTokens">--</span></div>
               <div class="small">Valor total (USD): <span id="portfolioUSD">--</span></div>
-              <div class="small">Última atualização: <span id="lastUpdate">--</span></div>
+              <div class="small">Ãšltima atualizaÃ§Ã£o: <span id="lastUpdate">--</span></div>
             </div>
           </div>
         </div>
@@ -115,7 +118,7 @@
       </div>
 
       <div id="tab-txs" class="panel tabpanel" style="display:none">
-        <div class="small">Transações recentes</div>
+        <div class="small">TransaÃ§Ãµes recentes</div>
         <div id="txList" style="margin-top:8px"></div>
       </div>
 
@@ -124,14 +127,14 @@
           <div class="col">
             <div class="small">Tipo</div>
             <select id="sendType" style="width:100%;margin-top:6px"><option value="SOL">SOL</option><option value="TOKEN">Token SPL</option></select>
-            <div class="small" style="margin-top:8px">Token (se aplicável)</div>
-            <select id="tokenSelect" style="width:100%;margin-top:6px"><option value="">— selecione token —</option></select>
-            <div style="margin-top:8px" class="small">Destinatários (uma linha = 1 destino). CSV: address,amount</div>
-            <textarea id="targetAddrs" rows="6" style="width:100%;margin-top:6px" placeholder="Uma linha = um endereço (ou address,amount)"></textarea>
+            <div class="small" style="margin-top:8px">Token (se aplicÃ¡vel)</div>
+            <select id="tokenSelect" style="width:100%;margin-top:6px"><option value="">â€” selecione token â€”</option></select>
+            <div style="margin-top:8px" class="small">DestinatÃ¡rios (uma linha = 1 destino). CSV: address,amount</div>
+            <textarea id="targetAddrs" rows="6" style="width:100%;margin-top:6px" placeholder="Uma linha = um endereÃ§o (ou address,amount)"></textarea>
             <div style="margin-top:8px" class="small">Quantidade (mesma quantia)</div>
             <input id="amountInput" placeholder="ex: 0.5" style="width:100%;margin-top:6px"/>
             <div class="small" style="margin-top:8px">Memo (opcional)</div>
-            <input id="memoInput" placeholder="observação" style="width:100%;margin-top:6px"/>
+            <input id="memoInput" placeholder="observaÃ§Ã£o" style="width:100%;margin-top:6px"/>
             <div style="margin-top:10px">
               <button id="btnSend" class="button primary">Enviar (mesma quantia)</button>
               <button id="btnAirdropCsv" class="button" style="margin-left:8px">Enviar CSV</button>
@@ -140,7 +143,7 @@
           </div>
 
           <div class="col">
-            <div class="small">Ações rápidas (devnet)</div>
+            <div class="small">AÃ§Ãµes rÃ¡pidas (devnet)</div>
             <button id="btnRequestAirdrop" class="button">Pedir Airdrop devnet (1 SOL)</button>
             <div style="margin-top:12px" class="small">Logs</div>
             <div class="logs" id="actionLogs"></div>
@@ -152,7 +155,7 @@
         <div class="row">
           <div class="col">
             <div class="small">Escolha token para queimar (native burn)</div>
-            <select id="burnTokenSelect" style="width:100%;margin-top:8px"><option value="">— selecione token —</option></select>
+            <select id="burnTokenSelect" style="width:100%;margin-top:8px"><option value="">â€” selecione token â€”</option></select>
             <div style="margin-top:8px" class="small">Quantidade</div>
             <input id="burnAmount" placeholder="quantidade" style="width:100%;margin-top:6px"/>
             <div style="margin-top:10px">
@@ -162,7 +165,7 @@
           </div>
 
           <div class="col">
-            <div class="small">Informações do mint</div>
+            <div class="small">InformaÃ§Ãµes do mint</div>
             <div id="mintInfo" style="margin-top:8px" class="small-muted">Selecione um token</div>
           </div>
         </div>
@@ -185,7 +188,7 @@
     </div>
 
     <div style="height:24px"></div>
-    <div class="small muted" style="text-align:center">Abra em <b>localhost</b> ou publique em <b>GitHub Pages</b>. Não rode em previews iframe.</div>
+    <div class="small muted" style="text-align:center">Abra em <b>localhost</b> ou publique em <b>GitHub Pages</b>. NÃ£o rode em previews iframe.</div>
   </div>
 
   <div id="toastContainer"></div>
@@ -327,7 +330,7 @@
       if(!ph){
         btnConnect.innerHTML = 'Conectar Phantom';
         btnConnect.disabled = false;
-        toast('Phantom não detectado. Abra o navegador com a extensão Phantom instalada.');
+        toast('Phantom nÃ£o detectado. Abra o navegador com a extensao Phantom instalada.');
         logMain('Phantom not found');
         return;
       }
@@ -337,7 +340,7 @@
       pubkey = resp.publicKey;
       connectStatus.textContent = 'Conectado';
       addrDisplay.textContent = pubkey.toString();
-      addrDisplay.onclick = ()=>copy(pubkey.toString(),'Endereço copiado');
+      addrDisplay.onclick = ()=>copy(pubkey.toString(),'Endereco copiado');
       qr.value = pubkey.toString();
       toast('Carteira conectada');
       logMain('Connected ' + pubkey.toString());
@@ -370,8 +373,8 @@
   // tokens
   async function listTokens(){
     tokenTableBody.innerHTML = '<tr><td colspan="7" class="small muted">Carregando...</td></tr>';
-    tokenSelect.innerHTML = '<option value="">— selecione token —</option>';
-    burnTokenSelect.innerHTML = '<option value="">— selecione token —</option>';
+    tokenSelect.innerHTML = '<option value="">â€” selecione token â€”</option>';
+    burnTokenSelect.innerHTML = '<option value="">â€” selecione token â€”</option>';
     if(!pubkey) { tokenTableBody.innerHTML='<tr><td colspan="7">Conecte a wallet</td></tr>'; return; }
     try {
       const res = await connection.getParsedTokenAccountsByOwner(pubkey, { programId: TOKEN_PROGRAM_ID });
@@ -414,16 +417,16 @@
         tr.innerHTML = `
           <td>${icon?'<img src="'+icon+'" class="token-icon" onerror="this.style.display=\\'none\\'"/>':''}</td>
           <td class="clickable">${symbol}</td>
-          <td>${name||'—'}</td>
+          <td>${name||'â€”'}</td>
           <td>${t.amount.toLocaleString()}</td>
-          <td>${valueSOL!==null?valueSOL.toFixed(6):'—'}</td>
-          <td>${valueUSD!==null?('$'+valueUSD.toFixed(4)):'—'}</td>
+          <td>${valueSOL!==null?valueSOL.toFixed(6):'â€”'}</td>
+          <td>${valueUSD!==null?('$'+valueUSD.toFixed(4)):'â€”'}</td>
           <td style="font-size:12px;color:var(--muted)">${t.mint}</td>
         `;
         tr.querySelector('.clickable').addEventListener('click', ()=>{ copy(t.mint,'Mint copiado'); });
         tokenTableBody.appendChild(tr);
         if(t.amount>0){
-          const opt = document.createElement('option'); opt.value=JSON.stringify({mint:t.mint,account:t.account,decimals:t.decimals}); opt.textContent = `${symbol} — ${t.amount}`;
+          const opt = document.createElement('option'); opt.value=JSON.stringify({mint:t.mint,account:t.account,decimals:t.decimals}); opt.textContent = `${symbol} â€” ${t.amount}`;
           tokenSelect.appendChild(opt);
           burnTokenSelect.appendChild(opt.cloneNode(true));
         }
@@ -443,14 +446,14 @@
     if(!pubkey) { txListDiv.innerHTML = 'Conecte a wallet'; return; }
     try {
       const sigs = await connection.getSignaturesForAddress(pubkey,{limit:15});
-      if(!sigs||!sigs.length){ txListDiv.innerHTML='Sem transações recentes'; return; }
+      if(!sigs||!sigs.length){ txListDiv.innerHTML='Sem transacoes recentes'; return; }
       txListDiv.innerHTML = sigs.map(s=> {
-        const status = s.err ? '❌' : '✅';
+        const status = s.err ? 'âŒ' : 'âœ…';
         const time = s.blockTime ? new Date(s.blockTime*1000).toLocaleString() : '-';
         const short = s.signature.slice(0,12)+'...';
         const cluster = rpcSelect.value.includes('devnet') ? 'devnet' : (rpcSelect.value.includes('testnet')?'testnet':'mainnet');
         const link = `https://explorer.solana.com/tx/${s.signature}?cluster=${cluster}`;
-        return `<div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.02)"><a href="${link}" target="_blank" style="color:var(--accent)">${short}</a> — ${status} <div class="small muted">${time}</div></div>`;
+        return `<div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.02)"><a href="${link}" target="_blank" style="color:var(--accent)">${short}</a> â€” ${status} <div class="small muted">${time}</div></div>`;
       }).join('');
     } catch(e){ txListDiv.innerHTML = 'Erro carregando txs'; logMain('listTxs err '+(e.message||e)); }
   }
@@ -503,12 +506,12 @@
   btnSend.addEventListener('click', async ()=>{
     if(!pubkey) return alert('Conecte Phantom');
     const lines = targetAddrs.value.split('\n').map(l=>l.trim()).filter(Boolean);
-    if(!lines.length) return alert('Inclua destinatários');
+    if(!lines.length) return alert('Inclua destinatarios');
     const amt = parseFloat(amountInput.value);
     const memo = memoInput.value || null;
     try {
       if(sendType.value === 'SOL'){
-        if(isNaN(amt) || amt <= 0) return alert('Quantidade inválida');
+        if(isNaN(amt) || amt <= 0) return alert('Quantidade invalida');
         for(const l of lines){
           const toStr = l.split(',')[0].trim();
           const to = new PublicKey(toStr);
@@ -520,7 +523,7 @@
         const sel = tokenSelect.value;
         if(!sel) return alert('Selecione token');
         const info = JSON.parse(sel);
-        if(isNaN(amt) || amt <= 0) return alert('Quantidade inválida');
+        if(isNaN(amt) || amt <= 0) return alert('Quantidade invalida');
         for(const l of lines){
           const toStr = l.split(',')[0].trim();
           const sig = await sendToken(info, toStr, amt, memo);
@@ -571,7 +574,7 @@
     if(!burnTokenSelect.value) return alert('Selecione token');
     const info = JSON.parse(burnTokenSelect.value);
     const amt = parseFloat(burnAmountInput.value);
-    if(isNaN(amt) || amt <=0) return alert('quantia inválida');
+    if(isNaN(amt) || amt <=0) return alert('quantia invalida');
     const decimals = parseInt(info.decimals||0);
     const raw = Math.round(amt * (10 ** decimals));
     try {
@@ -593,19 +596,19 @@
       const mintAcc = await connection.getParsedAccountInfo(new PublicKey(info.mint));
       if(mintAcc && mintAcc.value && mintAcc.value.data && mintAcc.value.data.parsed){
         const p = mintAcc.value.data.parsed.info;
-        mintInfoDiv.innerHTML = `<div class="small">Decimals: ${p.decimals} • Supply: ${p.supply}</div>`;
-      } else mintInfoDiv.textContent = 'Não foi possível ler o mint';
+        mintInfoDiv.innerHTML = `<div class="small">Decimals: ${p.decimals} â€¢ Supply: ${p.supply}</div>`;
+      } else mintInfoDiv.textContent = 'Nao foi possi­vel ler o mint';
     } catch(e){ mintInfoDiv.textContent = 'Erro lendo mint'; }
   });
 
   // initial phantom detection
   const ph = await detectPhantom(2000);
   if(ph){
-    connectStatus.textContent = 'Disponível (clique Conectar)';
-    toast('Phantom disponível — clique Conectar para pedir assinatura');
+    connectStatus.textContent = 'Disponi­vel (clique Conectar)';
+    toast('Phantom disponÃ­vel â€” clique Conectar para pedir assinatura');
   } else {
-    connectStatus.textContent = 'Phantom não detectado';
-    toast('Phantom não detectada. Instale a extensão: https://phantom.app');
+    connectStatus.textContent = 'Phantom nao detectado';
+    toast('Phantom nao detectada. Instale a extensao: https://phantom.app');
   }
 
   // initial load resources
