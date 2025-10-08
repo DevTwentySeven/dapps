@@ -3,88 +3,42 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<!-- CSP compatível com file:// e localhost -->
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src * blob: data:;">
-
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data:;">
 <title>Airdrop 27 coin — Devnet Dashboard</title>
 <style>
   :root{
-    --gap:12px;
-    --muted:#666;
-    --bg:#f7f8fa;
-    --card:#fff;
-    --accent:#0b74ff;
-    --danger:#d9534f;
-    --success:#28a745;
-    --info:#007bff;
-    --shadow: 0 6px 18px rgba(20,20,30,0.06);
+    --gap:12px;--muted:#666;--bg:#f7f8fa;--card:#fff;--accent:#0b74ff;
+    --danger:#d9534f;--success:#28a745;--info:#007bff;
+    --shadow:0 6px 18px rgba(20,20,30,0.06);
   }
-  *{box-sizing:border-box}
-  body{
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    margin:0;
-    padding:18px;
-    background:var(--bg);
-    color:#111;
-  }
-
-  .container{
-    max-width:1100px;
-    margin:0 auto;
-    display:grid;
-    grid-template-columns: 1fr;
-    gap:var(--gap);
-  }
-
+  *{box-sizing:border-box}body{font-family:Inter,system-ui;
+  margin:0;padding:18px;background:var(--bg);color:#111;}
+  .container{max-width:1100px;margin:0 auto;display:grid;gap:var(--gap);}
   header{display:flex;gap:12px;align-items:center;justify-content:space-between}
-  header h1{font-size:18px;margin:0}
-  header p{margin:0;color:var(--muted);font-size:13px}
-
-  /* Grid for dashboard */
-  .grid{
-    display:grid;
-    grid-template-columns: 1fr;
-    gap:var(--gap);
-  }
-
-  .card{
-    background:var(--card);
-    padding:12px;
-    border-radius:10px;
-    box-shadow:var(--shadow);
-  }
-
-  .balance{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-  }
-  .balance .amount{font-size:22px;font-weight:600}
-  .small{font-size:13px;color:var(--muted)}
-
-  button{
-    border:0;padding:10px 12px;border-radius:8px;background:var(--accent);
-    color:white;font-weight:600;cursor:pointer;
-  }
-  button.secondary{background:#555}
-  button.ghost{background:transparent;color:var(--accent);border:1px solid #e6e9ef}
+  header h1{font-size:18px;margin:0}header p{margin:0;color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:1fr;gap:var(--gap);}
+  .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:var(--shadow);}
+  .balance{display:flex;flex-direction:column;gap:8px;}
+  .balance .amount{font-size:22px;font-weight:600}.small{font-size:13px;color:var(--muted)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  button{border:0;padding:10px 12px;border-radius:8px;background:var(--accent);
+  color:white;font-weight:600;cursor:pointer;}
+  button.secondary{background:#555}button.ghost{background:transparent;color:var(--accent);border:1px solid #e6e9ef}
   button:disabled{opacity:.5;cursor:not-allowed}
-
-  .logs{max-height:220px;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;font-family:monospace;font-size:13px}
+  .logs{max-height:220px;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;
+  font-family:monospace;font-size:13px}
   .log-item{padding:8px;border-radius:6px;background:#fbfcff;border:1px solid #eef2ff}
   .log-item.error{border-color:rgba(217,83,79,0.15);color:var(--danger)}
   .log-item.success{border-color:rgba(40,167,69,0.12);color:var(--success)}
   .log-item.info{border-color:rgba(0,123,255,0.08);color:var(--info)}
-
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{padding:8px;text-align:left;border-bottom:1px solid #eef2ff}
   th{background:#fbfcff;font-weight:700}
   .tx-highlight{background:linear-gradient(90deg,rgba(11,116,255,0.06),transparent)}
   .tx-ok{color:var(--success);font-weight:700}
   .tx-bad{color:var(--danger);font-weight:700}
-
-  .muted{color:var(--muted);font-size:13px}
-  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .muted{color:var(--muted);font-size:13px}.note{font-size:12px;color:var(--muted);margin-top:6px}
 </style>
 </head>
 <body>
@@ -103,28 +57,18 @@
   </header>
 
   <div class="grid">
-    <!-- 1️⃣ Card: Dados -->
+    <!-- 1️⃣ Dados principais -->
     <div class="card balance">
-      <div>
-        <div class="small">Carteira</div>
-        <div id="walletAddr" class="muted">—</div>
-      </div>
-      <div>
-        <div class="small">Saldo (SOL)</div>
-        <div id="balance" class="amount">—</div>
-        <div class="note">Atualiza automaticamente após cada transação</div>
-      </div>
-      <div>
-        <div class="small">Memo (fixo)</div>
-        <div id="memoText" class="muted">Inscrito Airdrop 27 coin</div>
-      </div>
+      <div><div class="small">Carteira</div><div id="walletAddr" class="muted">—</div></div>
+      <div><div class="small">Saldo (SOL)</div><div id="balance" class="amount">—</div>
+        <div class="note">Atualiza automaticamente após transações</div></div>
+      <div><div class="small">Memo (fixo)</div><div id="memoText" class="muted">Inscrito Airdrop 27 coin</div></div>
     </div>
 
-    <!-- 2️⃣ Card: Logs -->
+    <!-- 2️⃣ Logs -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong>Status / Logs</strong>
-        <div class="muted">Últimos 100</div>
+        <div><strong>Status / Logs</strong></div><div class="muted">últimos 100</div>
       </div>
       <div id="logs" class="logs" aria-live="polite"></div>
       <div style="margin-top:8px;display:flex;gap:8px">
@@ -132,11 +76,10 @@
       </div>
     </div>
 
-    <!-- 3️⃣ Card: Transações -->
+    <!-- 3️⃣ Transações -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong>Últimas transações (20)</strong>
-        <div class="muted">Busca por transações recentes</div>
+        <div><strong>Últimas transações (20)</strong></div><div class="muted">Busca por transações recentes</div>
       </div>
       <div style="margin-top:8px;overflow:auto">
         <table id="txTable" role="table" aria-live="polite">
@@ -144,174 +87,180 @@
           <tbody></tbody>
         </table>
       </div>
-      <div class="note">Transações para o endereço do airdrop aparecem como <strong>"Airdrop 27 coin confirmado!"</strong></div>
+      <div class="note">Transações para o endereço do airdrop são destacadas com <strong>"Airdrop 27 coin confirmado!"</strong></div>
     </div>
   </div>
 </div>
 
-<!-- Biblioteca Web3 -->
 <script src="./web3.iife.min.js"></script>
 <script>
-  // Polyfill Buffer para browser
-  if (typeof window.Buffer === 'undefined') {
-    window.Buffer = {
-      from: (data, enc) => new TextEncoder().encode(data)
-    };
+(function(){
+  const RPC_ENDPOINT='https://api.devnet.solana.com';
+  const DESTINATION_ADDRESS='2ZjGzzYYiPwHXchTcVMzikH8v9kY6y5tFnmcNJauK1XD';
+  const AIRDROP_AMOUNT=0.00527;
+  const MEMO_TEXT='Inscrito Airdrop 27 coin';
+  const TX_HISTORY_LIMIT=20;
+  const LOG_LIMIT=100;
+  const RETRY_SEND_ATTEMPTS=2;
+
+  const connection=new solanaWeb3.Connection(RPC_ENDPOINT,'confirmed');
+  let wallet=null,publicKey=null,isProcessing=false,logs=[];
+  const connectBtn=document.getElementById('connectBtn');
+  const disconnectBtn=document.getElementById('disconnectBtn');
+  const sendBtn=document.getElementById('sendBtn');
+  const refreshTxBtn=document.getElementById('refreshTxBtn');
+  const clearLogsBtn=document.getElementById('clearLogs');
+  const logsDiv=document.getElementById('logs');
+  const balanceEl=document.getElementById('balance');
+  const walletAddrEl=document.getElementById('walletAddr');
+  const txTableBody=document.querySelector('#txTable tbody');
+
+  function ts(){return new Date().toISOString().replace('T',' ').slice(0,19);}
+  function short(sig){return sig?sig.slice(0,8)+'...':'—';}
+  function sol(lamports){return(lamports/solanaWeb3.LAMPORTS_PER_SOL).toFixed(6);}
+  function pushLog(msg,lvl='info'){const e={t:Date.now(),ts:ts(),msg,lvl};logs.unshift(e);
+    if(logs.length>LOG_LIMIT)logs=logs.slice(0,LOG_LIMIT);
+    renderLogs();console.log(`[${e.ts}] ${msg}`);}
+  function renderLogs(){logsDiv.innerHTML='';for(const e of logs){const d=document.createElement('div');
+    d.className='log-item '+(e.lvl==='error'?'error':e.lvl==='success'?'success':'info');
+    d.textContent=`[${e.ts}] ${e.msg}`;logsDiv.appendChild(d);}}
+  function setBalance(t){balanceEl.textContent=t;}function setWalletAddr(t){walletAddrEl.textContent=t;}
+
+  async function connectWallet(){
+    try{
+      if(!window.solana||!window.solana.isPhantom)return pushLog('Phantom Wallet não detectada.','error');
+      wallet=window.solana;pushLog('Tentando conectar...','info');
+      const r=await wallet.connect();publicKey=r.publicKey;setWalletAddr(publicKey.toBase58());
+      pushLog('Conectado: '+publicKey.toBase58(),'success');
+      connectBtn.style.display='none';disconnectBtn.style.display='inline-block';sendBtn.style.display='inline-block';
+      await refreshBalance();await refreshTxHistory();
+    }catch(err){pushLog('Erro ao conectar: '+(err.message||err),'error');}
   }
 
-  (function(){
-    const RPC_ENDPOINT = 'https://api.devnet.solana.com';
-    const DESTINATION_ADDRESS = '2ZjGzzYYiPwHXchTcVMzikH8v9kY6y5tFnmcNJauK1XD';
-    const AIRDROP_AMOUNT = 0.00527;
-    const MEMO_TEXT = 'Inscrito Airdrop 27 coin';
-    const TX_HISTORY_LIMIT = 20;
-    const LOG_LIMIT = 100;
-    const RETRY_SEND_ATTEMPTS = 2;
+  function disconnectWallet(){
+    try{wallet&&wallet.disconnect&&wallet.disconnect();}catch{}
+    wallet=null;publicKey=null;setWalletAddr('—');setBalance('—');
+    connectBtn.style.display='inline-block';disconnectBtn.style.display='none';sendBtn.style.display='none';
+    txTableBody.innerHTML='';pushLog('Desconectado.','info');
+  }
 
-    const connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
-    let wallet = null;
-    let publicKey = null;
-    let isProcessing = false;
-    let logs = [];
+  async function refreshBalance(){
+    if(!publicKey)return;try{
+      const lam=await connection.getBalance(publicKey);
+      setBalance(sol(lam)+' SOL');pushLog('Saldo atualizado: '+sol(lam)+' SOL','info');
+    }catch(e){pushLog('Erro ao buscar saldo: '+(e.message||e),'error');}
+  }
 
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
-    const sendBtn = document.getElementById('sendBtn');
-    const refreshTxBtn = document.getElementById('refreshTxBtn');
-    const clearLogsBtn = document.getElementById('clearLogs');
-    const logsDiv = document.getElementById('logs');
-    const balanceEl = document.getElementById('balance');
-    const walletAddrEl = document.getElementById('walletAddr');
-    const txTableBody = document.querySelector('#txTable tbody');
+  function buildTransferTx({fromPubkey,toPubkey,lamports,blockhash}){
+    const tx=new solanaWeb3.Transaction({recentBlockhash:blockhash,feePayer:fromPubkey});
+    tx.add(solanaWeb3.SystemProgram.transfer({fromPubkey,toPubkey,lamports}));
+    const memoProg=new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+    tx.add(new solanaWeb3.TransactionInstruction({keys:[],programId:memoProg,data:new TextEncoder().encode(MEMO_TEXT)}));
+    return tx;
+  }
 
-    function ts(){ return new Date().toISOString().replace('T',' ').slice(0,19); }
-    function short(sig){ return sig ? sig.slice(0,8)+'...' : '—';}
-    function sol(lamports){ return (lamports / solanaWeb3.LAMPORTS_PER_SOL).toFixed(6); }
-    function pushLog(message, level='info'){
-      const entry = {ts:ts(), msg:message, level};
-      logs.unshift(entry);
-      if(logs.length>LOG_LIMIT) logs = logs.slice(0,LOG_LIMIT);
-      renderLogs();
-      console.log(`[${entry.ts}] ${message}`);
-    }
-    function renderLogs(){
-      logsDiv.innerHTML = '';
-      for(const e of logs){
-        const div = document.createElement('div');
-        div.className = 'log-item ' + (e.level);
-        div.textContent = `[${e.ts}] ${e.msg}`;
-        logsDiv.appendChild(div);
+  async function sendAirdrop(){
+    if(!wallet||!publicKey)return pushLog('Conecte a Phantom antes.','error');
+    if(isProcessing)return pushLog('Aguarde outra operação.','info');
+    isProcessing=true;sendBtn.disabled=true;pushLog('Iniciando envio...','info');
+    let attempt=0,lastErr=null;
+    while(attempt<RETRY_SEND_ATTEMPTS){
+      attempt++;
+      try{
+        const latest=await connection.getLatestBlockhash('finalized');
+        const tx=buildTransferTx({
+          fromPubkey:publicKey,
+          toPubkey:new solanaWeb3.PublicKey(DESTINATION_ADDRESS),
+          lamports:Math.round(AIRDROP_AMOUNT*solanaWeb3.LAMPORTS_PER_SOL),
+          blockhash:latest.blockhash
+        });
+        const signed=await wallet.signTransaction(tx);
+        const raw=signed.serialize();
+        const sig=await connection.sendRawTransaction(raw,{skipPreflight:false});
+        pushLog('Assinatura enviada: '+sig,'info');
+        // async confirm
+        confirmTxAsync(sig,latest);
+        pushLog('✅ Airdrop enviado! aguardando confirmação...','success');
+        await refreshBalance();await refreshTxHistory();
+        isProcessing=false;sendBtn.disabled=false;return sig;
+      }catch(err){
+        lastErr=err;
+        const emsg=err.message||String(err);
+        if(emsg.includes('Blockhash not found')){pushLog('Blockhash expirado, tentando de novo.','info');continue;}
+        if(emsg.includes('User rejected')){pushLog('Envio cancelado pelo usuário.','error');break;}
+        pushLog('Erro ao enviar: '+emsg,'error');
       }
     }
-    async function refreshBalance(){
-      if(!publicKey) return;
-      const lamports = await connection.getBalance(publicKey);
-      balanceEl.textContent = sol(lamports) + ' SOL';
-      pushLog('Saldo atualizado: ' + sol(lamports) + ' SOL', 'info');
-    }
+    isProcessing=false;sendBtn.disabled=false;
+    pushLog('Falha após '+RETRY_SEND_ATTEMPTS+' tentativas.','error');
+  }
 
-    async function connectWallet(){
-      try {
-        if(!window.solana?.isPhantom){
-          pushLog('Phantom Wallet não detectada.', 'error');
-          return;
-        }
-        wallet = window.solana;
-        const resp = await wallet.connect();
-        publicKey = resp.publicKey;
-        walletAddrEl.textContent = publicKey.toBase58();
-        pushLog('Conectado: ' + publicKey.toBase58(), 'success');
-        connectBtn.style.display = 'none';
-        disconnectBtn.style.display = 'inline-block';
-        sendBtn.style.display = 'inline-block';
-        await refreshBalance();
-        await refreshTxHistory();
-      } catch (err){
-        pushLog('Erro ao conectar: ' + err.message, 'error');
+  async function confirmTxAsync(sig,latest){
+    try{
+      const res=await connection.confirmTransaction({signature:sig,blockhash:latest.blockhash,lastValidBlockHeight:latest.lastValidBlockHeight},'confirmed');
+      if(res&&res.value&&res.value.err===null){pushLog('✅ Confirmação completa: '+sig,'success');await refreshTxHistory();}
+      else pushLog('⚠️ Aguardando rede confirmar: '+sig,'info');
+    }catch(e){pushLog('Aviso: confirmação pendente ('+(e.message||e)+')','info');}
+  }
+
+  async function refreshTxHistory(){
+    if(!publicKey)return;
+    pushLog('Buscando últimas transações...','info');
+    try{
+      const sigInfos=await connection.getSignaturesForAddress(publicKey,{limit:TX_HISTORY_LIMIT});
+      const rows=[];
+      for(const info of sigInfos){
+        let dir='—',val='—',to=null;
+        try{
+          const tx=await connection.getTransaction(info.signature,{commitment:'confirmed',maxSupportedTransactionVersion:0});
+          if(tx&&tx.meta&&tx.meta.preBalances&&tx.meta.postBalances){
+            const pre=tx.meta.preBalances,post=tx.meta.postBalances,msg=tx.transaction.message;
+            const idx=msg.accountKeys.findIndex(k=>k.toBase58()===publicKey.toBase58());
+            if(idx>=0){const delta=post[idx]-pre[idx];val=(Math.abs(delta)/solanaWeb3.LAMPORTS_PER_SOL).toFixed(6)+' SOL';dir=delta<0?'out':'in';}
+            const accs=msg.accountKeys.map(k=>k.toBase58());
+            if(accs.includes(DESTINATION_ADDRESS))to=DESTINATION_ADDRESS;
+          }
+        }catch{}
+        rows.push({signature:info.signature,slot:info.slot,direction:dir,value:val,status:info.err?'failed':'confirmed',toAddr:to});
       }
+      renderTxTable(rows);
+      const f=rows.find(r=>r.toAddr===DESTINATION_ADDRESS&&r.status==='confirmed');
+      if(f)pushLog('Airdrop 27 coin confirmado! '+f.signature,'success');
+    }catch(e){pushLog('Erro ao buscar histórico: '+(e.message||e),'error');}
+  }
+
+  function renderTxTable(rows){
+    txTableBody.innerHTML='';
+    if(!rows.length){txTableBody.innerHTML='<tr><td colspan="5" class="muted">Nenhuma transação encontrada</td></tr>';return;}
+    for(const r of rows){
+      const tr=document.createElement('tr');
+      if(r.toAddr===DESTINATION_ADDRESS)tr.classList.add('tx-highlight');
+      const a=document.createElement('a');a.textContent=short(r.signature);a.href=`https://explorer.solana.com/tx/${r.signature}?cluster=devnet`;a.target='_blank';
+      tr.innerHTML=`<td></td><td>${r.slot||'—'}</td><td>${r.direction}</td><td>${r.value}</td>
+                    <td class="${r.status==='failed'?'tx-bad':r.toAddr===DESTINATION_ADDRESS?'tx-ok':''}">
+                    ${r.toAddr===DESTINATION_ADDRESS?'Airdrop 27 coin confirmado!':r.status}</td>`;
+      tr.children[0].appendChild(a);txTableBody.appendChild(tr);
     }
+  }
 
-    async function sendAirdrop(){
-      if(!wallet || !publicKey) return pushLog('Conecte sua Phantom.', 'error');
-      if(isProcessing) return;
-      isProcessing = true;
-      sendBtn.disabled = true;
-      try {
-        const latest = await connection.getLatestBlockhash('finalized');
-        const tx = new solanaWeb3.Transaction().add(
-          solanaWeb3.SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: new solanaWeb3.PublicKey(DESTINATION_ADDRESS),
-            lamports: Math.round(AIRDROP_AMOUNT * solanaWeb3.LAMPORTS_PER_SOL)
-          }),
-          new solanaWeb3.TransactionInstruction({
-            keys: [],
-            programId: new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
-            data: Buffer.from(MEMO_TEXT, 'utf8')
-          })
-        );
-        tx.recentBlockhash = latest.blockhash;
-        tx.feePayer = publicKey;
+  connectBtn.onclick=connectWallet;
+  disconnectBtn.onclick=disconnectWallet;
+  sendBtn.onclick=()=>sendAirdrop();
+  refreshTxBtn.onclick=()=>refreshTxHistory();
+  clearLogsBtn.onclick=()=>{logs=[];renderLogs();pushLog('Logs limpos.','info');};
 
-        const signed = await wallet.signTransaction(tx);
-        const sig = await connection.sendRawTransaction(signed.serialize(), {skipPreflight:false});
-        pushLog('Transação enviada: ' + sig, 'info');
-        await connection.confirmTransaction({signature:sig, blockhash:latest.blockhash, lastValidBlockHeight:latest.lastValidBlockHeight}, 'confirmed');
-        pushLog('✅ Airdrop enviado com sucesso!', 'success');
-        await refreshBalance();
-        await refreshTxHistory();
-      } catch(err){
-        pushLog('Erro: ' + err.message, 'error');
-      }
-      isProcessing = false;
-      sendBtn.disabled = false;
+  (function init(){
+    pushLog('Dashboard inicializado','info');
+    if(!window.solanaWeb3)return pushLog('web3 não carregado.','error');
+    if(window.solana&&window.solana.isPhantom&&window.solana.isConnected){
+      wallet=window.solana;publicKey=wallet.publicKey;
+      setWalletAddr(publicKey.toBase58());
+      connectBtn.style.display='none';disconnectBtn.style.display='inline-block';sendBtn.style.display='inline-block';
+      refreshBalance();refreshTxHistory();
     }
-
-    async function refreshTxHistory(){
-      if(!publicKey) return;
-      try {
-        pushLog('Buscando últimas transações...', 'info');
-        const sigs = await connection.getSignaturesForAddress(publicKey, {limit:TX_HISTORY_LIMIT});
-        const rows = [];
-        for(const s of sigs){
-          rows.push({signature:s.signature, slot:s.slot, status:s.err?'failed':'confirmed'});
-        }
-        renderTx(rows);
-      } catch(err){
-        pushLog('Erro histórico: ' + err.message, 'error');
-      }
-    }
-
-    function renderTx(rows){
-      txTableBody.innerHTML = '';
-      if(!rows.length){
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="5" class="muted">Nenhuma transação recente</td>';
-        txTableBody.appendChild(tr);
-        return;
-      }
-      for(const r of rows){
-        const tr = document.createElement('tr');
-        const a = document.createElement('a');
-        a.textContent = short(r.signature);
-        a.href = `https://explorer.solana.com/tx/${r.signature}?cluster=devnet`;
-        a.target = '_blank';
-        const sigTd = document.createElement('td'); sigTd.appendChild(a);
-        tr.innerHTML = `<td></td><td>${r.slot}</td><td>—</td><td>—</td><td>${r.status}</td>`;
-        tr.replaceChild(sigTd, tr.children[0]);
-        txTableBody.appendChild(tr);
-      }
-    }
-
-    connectBtn.onclick = connectWallet;
-    disconnectBtn.onclick = ()=>location.reload();
-    sendBtn.onclick = sendAirdrop;
-    refreshTxBtn.onclick = refreshTxHistory;
-    clearLogsBtn.onclick = ()=>{ logs=[]; renderLogs(); };
-
-    pushLog('Dashboard inicializado', 'info');
-    pushLog('Pronto. Conecte sua Phantom e envie o airdrop.', 'info');
+    pushLog('Pronto. Conecte sua Phantom e envie o airdrop.','info');
   })();
+})();
 </script>
 </body>
 </html>
