@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<!-- CSP relaxada para desenvolvimento local (file:// / localhost). Ajuste para produção. -->
-<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' data:;">
 <title>Airdrop 27 coin — Devnet Dashboard</title>
 <style>
   :root{
@@ -12,7 +11,7 @@
     --danger:#d9534f;--success:#28a745;--info:#007bff;
     --shadow:0 6px 18px rgba(20,20,30,0.06);
   }
-  *{box-sizing:border-box}body{font-family:Inter,system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  *{box-sizing:border-box}body{font-family:Inter,system-ui;
   margin:0;padding:18px;background:var(--bg);color:#111;}
   .container{max-width:1100px;margin:0 auto;display:grid;gap:var(--gap);}
   header{display:flex;gap:12px;align-items:center;justify-content:space-between}
@@ -21,8 +20,7 @@
   .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:var(--shadow);}
   .balance{display:flex;flex-direction:column;gap:8px;}
   .balance .amount{font-size:22px;font-weight:600}.small{font-size:13px;color:var(--muted)}
-  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .status-badge{padding:8px 10px;border-radius:8px;background:#eef5ff;color:#034ea2;font-weight:700}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
   button{border:0;padding:10px 12px;border-radius:8px;background:var(--accent);
   color:white;font-weight:600;cursor:pointer;}
   button.secondary{background:#555}button.ghost{background:transparent;color:var(--accent);border:1px solid #e6e9ef}
@@ -41,8 +39,6 @@
   .tx-bad{color:var(--danger);font-weight:700}
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
   .muted{color:var(--muted);font-size:13px}.note{font-size:12px;color:var(--muted);margin-top:6px}
-  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,0.08);border-left-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite;margin-left:8px}
-  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -53,7 +49,6 @@
       <p>Painel de envio, status e histórico (mobile + desktop)</p>
     </div>
     <div class="controls">
-      <span id="statusBadge" class="status-badge">pronto</span>
       <button id="connectBtn">Conectar Phantom</button>
       <button id="disconnectBtn" class="secondary" style="display:none">Desconectar</button>
       <button id="sendBtn" style="display:none">Enviar Airdrop (0.00527 SOL)</button>
@@ -84,7 +79,10 @@
         <div><strong>Últimas transações (20)</strong></div><div class="muted">Busca por transações recentes</div>
       </div>
       <div style="margin-top:8px;overflow:auto">
-        <table id="txTable" role="table"><thead><tr><th>Sig</th><th>Slot</th><th>Direção</th><th>Valor</th><th>Status</th></tr></thead><tbody></tbody></table>
+        <table id="txTable" role="table" aria-live="polite">
+          <thead><tr><th>Sig</th><th>Slot</th><th>Direção</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
       <div class="note">Transações para o endereço do airdrop são destacadas com <strong>"Airdrop 27 coin confirmado!"</strong></div>
     </div>
@@ -93,477 +91,206 @@
 
 <script src="./web3.iife.min.js"></script>
 <script>
-/*
-  Final dashboard:
-  - status badge
-  - paginated full-scan with pauses & cache
-  - robust send flow: retry blockhash, treat 'already processed' as success
-  - resilient parsed tx fetching (retries on RPC 429/fetch errors)
-  - send button hidden until eligibility confirmed
-*/
-(function(){
-  // ---------- CONFIG ----------
-  const RPC = 'https://api.devnet.solana.com';
-  const DESTINATION = '2ZjGzzYYiPwHXchTcVMzikH8v9kY6y5tFnmcNJauK1XD';
-  const MEMO_TEXT = 'Inscrito Airdrop 27 coin';
-  const AIRDROP_SOL = 0.00527;
-  const TX_HISTORY_LIMIT = 20;
-  const FULL_SIG_BATCH = 200; // per page to avoid 429
-  const FULL_SIG_MAX = 3000; // cap total scanned
-  const CACHE_TTL_MS = 1000 * 60 * 2; // 2 minutes cache for registration result
-  const MAX_SEND_ATTEMPTS = 3;
-  const CONFIRM_POLL_INTERVAL_MS = 1500;
-  const CONFIRM_POLL_TIMEOUT_MS = 30 * 1000; // 30s
+(async function(){
 
-  // ---------- STATE ----------
-  const conn = new solanaWeb3.Connection(RPC, 'confirmed');
-  let wallet = null;
-  let publicKey = null;
-  let isProcessing = false;
-  let logs = [];
-  let registrationCache = { ts: 0, value: null };
+  const RPC='https://api.devnet.solana.com';
+  const DEST='2ZjGzzYYiPwHXchTcVMzikH8v9kY6y5tFnmcNJauK1XD';
+  const MEMO='Inscrito Airdrop 27 coin';
+  const AMT=0.00527;
+  const LOGS_MAX=100;
+  const TX_LIMIT=20;
 
-  // ---------- UI REFS ----------
-  const statusBadge = document.getElementById('statusBadge');
-  const connectBtn = document.getElementById('connectBtn');
-  const disconnectBtn = document.getElementById('disconnectBtn');
-  const sendBtn = document.getElementById('sendBtn');
-  const refreshTxBtn = document.getElementById('refreshTxBtn');
-  const clearLogsBtn = document.getElementById('clearLogs');
-  const logsDiv = document.getElementById('logs');
-  const balanceEl = document.getElementById('balance');
-  const walletAddrEl = document.getElementById('walletAddr');
-  const txTableBody = document.querySelector('#txTable tbody');
-  const memoTextEl = document.getElementById('memoText');
+  const conn=new solanaWeb3.Connection(RPC,'confirmed');
+  let wallet=null,pk=null,isBusy=false,logs=[];
 
-  memoTextEl.textContent = MEMO_TEXT;
-
-  // ---------- HELPERS ----------
-  function nowTs(){ return new Date().toLocaleTimeString(); }
-  function pushLog(msg, level='info'){
-    const el = document.createElement('div');
-    el.className = 'log-item ' + (level==='error' ? 'error' : (level==='success' ? 'success' : 'info'));
-    el.textContent = `[${nowTs()}] ${msg}`;
-    logs.unshift(el);
-    if(logs.length>100) logs = logs.slice(0,100);
-    logsDiv.innerHTML = '';
-    logs.forEach(n => logsDiv.appendChild(n));
-    console.log(msg);
-  }
-  function setStatus(text, tone='info'){
-    statusBadge.textContent = text;
-    statusBadge.style.background = tone === 'info' ? '#eef5ff' : (tone==='success' ? '#ecfff0' : (tone==='error' ? '#fff0f0' : '#fff7e6'));
-    statusBadge.style.color = tone==='success' ? '#0a6f2f' : tone==='error' ? '#a31d2f' : '#034ea2';
-  }
-  function lamportsToSOL(n){ return (n / solanaWeb3.LAMPORTS_PER_SOL); }
-  function short(sig){ return sig ? sig.slice(0,8) + '...' : '—'; }
-
-  // Sleep helper
-  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
-
-  // Safe parsed transaction fetch with retries/backoff (handles 429 / fetch errors)
-  async function safeGetParsedTransaction(sig, attempts=4){
-    let attempt=0; let backoff=300;
-    while(attempt < attempts){
-      attempt++;
-      try{
-        // try with maxSupportedTransactionVersion to avoid version error (some nodes require it)
-        return await conn.getParsedTransaction(sig, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 });
-      }catch(e){
-        const em = (e && e.message) ? e.message : String(e);
-        // if rate limit or network error -> retry with backoff
-        if(em.includes('429') || em.toLowerCase().includes('too many requests') || em.toLowerCase().includes('failed to fetch') ){
-          pushLog(`RPC rate/connection issue on parsed tx (attempt ${attempt}) — retrying in ${backoff}ms`, 'info');
-          await sleep(backoff);
-          backoff *= 1.8;
-          continue;
-        }
-        // other errors -> rethrow after small delay or just return null
-        pushLog(`Erro ao buscar tx ${sig}: ${em}`, 'info');
-        return null;
-      }
+  const $=id=>document.getElementById(id);
+  const log=(m,l='info')=>{
+    const t=new Date().toLocaleTimeString('pt-BR');
+    logs.unshift({t,m,l}); if(logs.length>LOGS_MAX) logs.pop();
+    renderLogs();
+    console.log(`[${t}] ${m}`);
+  };
+  const renderLogs=()=>{
+    const el=$('logs'); el.innerHTML='';
+    for(const x of logs){
+      const d=document.createElement('div');
+      d.className='log-item '+(x.l==='error'?'error':x.l==='success'?'success':'info');
+      d.textContent=`[${x.t}] ${x.m}`; el.appendChild(d);
     }
-    pushLog(`Falha ao buscar tx ${sig} após ${attempts} tentativas.`, 'error');
-    return null;
+  };
+
+  async function connect(){
+    if(!window.solana||!window.solana.isPhantom) return log('Phantom não detectada','error');
+    wallet=window.solana; log('Tentando conectar...','info');
+    const r=await wallet.connect(); pk=r.publicKey;
+    $('walletAddr').textContent=pk.toBase58();
+    $('connectBtn').style.display='none'; $('disconnectBtn').style.display='inline-block';
+    log('Conectado: '+pk.toBase58(),'success');
+    await updateBalance();
+    await checkEligibilityAndShowButton();
+    await refreshTxs();
   }
 
-  // Fetch many signatures paginated, with pauses to avoid rate limits
-  async function fetchAllSignaturesForAddress(pubkey){
-    const all = [];
-    let before = undefined;
-    try{
-      while(true){
-        const opts = { limit: FULL_SIG_BATCH };
-        if(before) opts.before = before;
-        const batch = await conn.getSignaturesForAddress(pubkey, opts);
-        if(!batch || batch.length === 0) break;
-        all.push(...batch);
-        if(batch.length < FULL_SIG_BATCH) break;
-        if(all.length >= FULL_SIG_MAX){
-          pushLog(`Limite de leitura alcançado (${FULL_SIG_MAX}). Parando scan.`, 'info');
-          break;
-        }
-        before = batch[batch.length - 1].signature;
-        await sleep(250); // small pause
-      }
-    }catch(e){
-      pushLog('Erro ao coletar assinaturas (full scan): ' + (e.message || e), 'error');
+  async function disconnect(){
+    try{wallet.disconnect();}catch{}
+    wallet=null; pk=null;
+    $('walletAddr').textContent='—'; $('balance').textContent='—';
+    $('connectBtn').style.display='inline-block'; $('disconnectBtn').style.display='none';
+    $('sendBtn').style.display='none';
+    log('Desconectado.','info');
+  }
+
+  async function updateBalance(){
+    if(!pk) return;
+    const lam=await conn.getBalance(pk);
+    $('balance').textContent=(lam/solanaWeb3.LAMPORTS_PER_SOL).toFixed(6)+' SOL';
+  }
+
+  async function checkEligibilityAndShowButton(){
+    $('sendBtn').style.display='none';
+    log('Verificando elegibilidade...','info');
+    const eligible=await detectRegistrationFullScan();
+    if(eligible){
+      log('🚫 Usuário já inscrito — envio bloqueado.','info');
+    }else{
+      log('✅ Usuário apto para o airdrop','success');
+      $('sendBtn').style.display='inline-block';
+      $('sendBtn').disabled=false;
     }
-    return all;
   }
 
-  // Robust check for prior registration (memo + transfer to DESTINATION)
   async function detectRegistrationFullScan(){
-    // use cache
-    const now = Date.now();
-    if(registrationCache.ts && (now - registrationCache.ts) < CACHE_TTL_MS){
-      pushLog('Usando resultado em cache da varredura completa.', 'info');
-      return registrationCache.value;
-    }
-    setStatus('verificando (scan completo) ...', 'info');
-    pushLog('Iniciando varredura completa do histórico (pode levar alguns segundos)...', 'info');
-
-    const sigInfos = await fetchAllSignaturesForAddress(publicKey);
-    if(!sigInfos || sigInfos.length === 0){
-      pushLog('Nenhuma assinatura encontrada no histórico.', 'info');
-      registrationCache = { ts: Date.now(), value: false };
-      setStatus('pronto', 'info');
-      return false;
-    }
-
-    for(const info of sigInfos){
-      try{
-        const parsed = await safeGetParsedTransaction(info.signature);
-        if(!parsed || !parsed.transaction) continue;
-        const instructions = parsed.transaction.message.instructions || [];
-        let memoFound = false;
-        let transferToDest = false;
-        for(const ix of instructions){
-          try{
-            // normalize program id/key representation safely
-            const prog = ix.program || (ix.programId && (typeof ix.programId === 'string' ? ix.programId : ix.programId.toBase58 && ix.programId.toBase58()));
-            // parsed memo
-            if(prog === 'spl-memo' || (ix.programId && typeof ix.programId !== 'string' && ix.programId.toBase58 && ix.programId.toBase58() === 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')){
-              // parsed memo variations
-              if(typeof ix.parsed === 'string' && ix.parsed === MEMO_TEXT) memoFound = true;
-              else if(ix.parsed && (ix.parsed.memo === MEMO_TEXT || ix.parsed === MEMO_TEXT)) memoFound = true;
-              else if(ix.data){
-                try{ const dec = atob(ix.data); if(dec === MEMO_TEXT) memoFound = true; }catch(_){}
-              }
-            }
-            // transfer detection (parsed)
-            if(ix.program === 'system' && ix.parsed && ix.parsed.type === 'transfer'){
-              const dest = ix.parsed.info && ix.parsed.info.destination;
-              if(dest === DESTINATION) transferToDest = true;
-            }
-          }catch(_){}
+    if(!pk) return false;
+    log('Iniciando varredura completa do histórico (pode levar alguns segundos)...','info');
+    try{
+      const sigs=await conn.getSignaturesForAddress(pk,{limit:1000});
+      for(const s of sigs){
+        const tx=await safeGetParsedTransaction(s.signature);
+        if(!tx) continue;
+        const instr=tx.transaction.message.instructions||[];
+        let hasMemo=false,hasDest=false;
+        for(const ix of instr){
+          if(ix.program==='system'&&ix.parsed?.info?.destination===DEST) hasDest=true;
+          if(ix.parsed?.type==='memo'||ix.parsed?.memo===MEMO||ix.parsed===MEMO) hasMemo=true;
         }
-        if(memoFound && transferToDest){
-          pushLog('Registro de inscrição encontrado em tx: ' + info.signature, 'success');
-          registrationCache = { ts: Date.now(), value: true };
-          setStatus('já inscrito', 'success');
+        if(hasMemo&&hasDest){
+          log('Registro de inscrição encontrado em tx: '+s.signature,'success');
           return true;
         }
-      }catch(err){
-        // ignore single tx errors
       }
+    }catch(e){
+      log('Erro na varredura: '+(e.message||e),'error');
     }
-    registrationCache = { ts: Date.now(), value: false };
-    setStatus('pronto', 'info');
+    log('Nenhum registro de inscrição encontrado — apto.','info');
     return false;
   }
 
-  // Render last TXs (20)
-  async function refreshTxHistory(){
-    if(!publicKey) return;
-    pushLog('Atualizando últimas transações...', 'info');
-    try{
-      const sigInfos = await conn.getSignaturesForAddress(publicKey, { limit: TX_HISTORY_LIMIT });
-      txTableBody.innerHTML = '';
-      for(const info of sigInfos){
-        // safe fetch parsed tx with retries
-        const parsed = await safeGetParsedTransaction(info.signature);
-        let dir = '—', val = '—', toAddr = null;
-        if(parsed && parsed.meta && parsed.meta.preBalances && parsed.meta.postBalances && parsed.transaction){
-          const pre = parsed.meta.preBalances, post = parsed.meta.postBalances;
-          const msg = parsed.transaction.message;
-          // accountKeys may be PublicKey objects or strings
-          const keys = (msg.accountKeys || []).map(k => (typeof k === 'string' ? k : (k.toBase58 ? k.toBase58() : String(k))));
-          const idx = keys.findIndex(k => k === publicKey.toBase58());
-          if(idx >= 0){
-            const delta = post[idx] - pre[idx];
-            dir = delta < 0 ? 'out' : 'in';
-            val = (Math.abs(delta) / solanaWeb3.LAMPORTS_PER_SOL).toFixed(6) + ' SOL';
-          }
-          if(keys.includes(DESTINATION)) toAddr = DESTINATION;
-        }
-        // fallback: if no parsed available, still show basic row
-        const tr = document.createElement('tr');
-        if(toAddr === DESTINATION) tr.classList.add('tx-highlight');
-        const a = document.createElement('a');
-        a.href = `https://explorer.solana.com/tx/${info.signature}?cluster=devnet`;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = short(info.signature);
-        const tdSig = document.createElement('td'); tdSig.appendChild(a);
-        const tdSlot = document.createElement('td'); tdSlot.textContent = info.slot || '—';
-        const tdDir = document.createElement('td'); tdDir.textContent = dir;
-        const tdVal = document.createElement('td'); tdVal.textContent = val;
-        const tdStatus = document.createElement('td');
-        tdStatus.textContent = toAddr === DESTINATION ? 'Airdrop 27 coin confirmado!' : (info.err ? 'failed' : 'confirmed');
-        if(info.err) tdStatus.classList.add('tx-bad');
-        if(toAddr === DESTINATION) tdStatus.classList.add('tx-ok');
-        tr.appendChild(tdSig); tr.appendChild(tdSlot); tr.appendChild(tdDir); tr.appendChild(tdVal); tr.appendChild(tdStatus);
-        txTableBody.appendChild(tr);
+  async function safeGetParsedTransaction(sig){
+    let delay=2500;
+    for(let i=0;i<6;i++){
+      try{
+        const tx=await conn.getParsedTransaction(sig,'confirmed');
+        if(tx) return tx;
+      }catch(e){
+        if(e.message.includes('429')){
+          log(`Rate limit, retry em ${delay}ms`,'info');
+          await new Promise(r=>setTimeout(r,delay));
+          delay*=2;
+        }else break;
       }
-    }catch(e){
-      pushLog('Erro ao atualizar txs: ' + (e.message || e), 'error');
     }
+    return null;
   }
 
-  // Check eligibility: balance + prior registration (uses cached result)
-  async function checkEligibilityAndShowButton(){
-    if(!publicKey) return;
-    setStatus('verificando elegibilidade...', 'info');
-    pushLog('Verificando saldo...');
-    try{
-      const lam = await conn.getBalance(publicKey);
-      const solBal = lamportsToSOL(lam);
-      balanceEl.textContent = solBal.toFixed(6) + ' SOL';
-      if(solBal < 0.002){ // threshold small buffer
-        pushLog('Saldo insuficiente (min ~0.002 SOL).', 'error');
-        setStatus('saldo insuficiente', 'error');
-        sendBtn.style.display = 'none';
-        return;
-      }
-      // check prior registration (cached or full scan)
-      const already = await detectRegistrationFullScan();
-      if(already){
-        pushLog('Usuário já inscrito — envio bloqueado.', 'success');
-        setStatus('já inscrito', 'success');
-        sendBtn.style.display = 'none';
-      } else {
-        pushLog('Nenhum registro de inscrição encontrado — apto.', 'success');
-        setStatus('apto', 'success');
-        sendBtn.style.display = 'inline-block';
-        sendBtn.disabled = false;
-        sendBtn.textContent = `Enviar Airdrop (${AIRDROP_SOL} SOL)`;
-      }
-    }catch(e){
-      pushLog('Erro na verificação de elegibilidade: ' + (e.message || e), 'error');
-      setStatus('erro', 'error');
-      sendBtn.style.display = 'none';
-    }
-  }
-
-  // Robust send flow: retry on blockhash expired, handle already processed, confirm with polling fallback
   async function sendAirdrop(){
-    if(!wallet || !publicKey) { pushLog('Carteira não conectada.','error'); return; }
-    if(isProcessing) { pushLog('Outra operação em andamento. Aguarde...','info'); return; }
-    isProcessing = true;
-    sendBtn.disabled = true;
-    pushLog('Iniciando envio do airdrop...', 'info');
-
-    let attempt = 0;
-    while(attempt < MAX_SEND_ATTEMPTS){
+    if(!wallet||!pk||isBusy) return;
+    isBusy=true;
+    $('sendBtn').disabled=true;
+    log('Iniciando envio do airdrop...','info');
+    let attempt=0;
+    while(attempt<2){
       attempt++;
       try{
-        // 1) latest blockhash
-        pushLog(`Obtendo latest blockhash (tentativa ${attempt})`, 'info');
-        const latest = await conn.getLatestBlockhash('finalized'); // { blockhash, lastValidBlockHeight }
-        // 2) build tx
-        const tx = new solanaWeb3.Transaction({ recentBlockhash: latest.blockhash, feePayer: publicKey });
-        tx.add(solanaWeb3.SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new solanaWeb3.PublicKey(DESTINATION),
-          lamports: Math.round(AIRDROP_SOL * solanaWeb3.LAMPORTS_PER_SOL)
-        }));
-        tx.add(new solanaWeb3.TransactionInstruction({
-          keys: [],
-          programId: new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
-          data: new TextEncoder().encode(MEMO_TEXT)
-        }));
-        // 3) sign
-        pushLog('Solicitando assinatura na carteira (Phantom)...', 'info');
-        const signed = await wallet.signTransaction(tx);
-        pushLog('Transação assinada localmente.', 'info');
-        const raw = signed.serialize();
+        log(`Obtendo latest blockhash (tentativa ${attempt})`,'info');
+        const {blockhash,lastValidBlockHeight}=await conn.getLatestBlockhash('finalized');
+        const tx=new solanaWeb3.Transaction({recentBlockhash:blockhash,feePayer:pk});
+        tx.add(solanaWeb3.SystemProgram.transfer({fromPubkey:pk,toPubkey:new solanaWeb3.PublicKey(DEST),lamports:Math.round(AMT*solanaWeb3.LAMPORTS_PER_SOL)}));
+        const memoProg=new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+        tx.add(new solanaWeb3.TransactionInstruction({keys:[],programId:memoProg,data:new TextEncoder().encode(MEMO)}));
 
-        // 4) send (with preflight)
-        pushLog('Enviando transação ao RPC...', 'info');
-        let signature;
-        try {
-          signature = await conn.sendRawTransaction(raw, { skipPreflight: false });
-        } catch (sendErr) {
-          const em = sendErr && sendErr.message ? sendErr.message : String(sendErr);
-          // if already processed -> treat as success
-          if(em.includes('already been processed') || em.includes('already processed')) {
-            pushLog('Transação já processada segundo o RPC. Tratando como sucesso.', 'success');
-            await refreshTxHistory(); await checkEligibilityAndShowButton();
-            isProcessing = false; sendBtn.disabled = true;
-            setStatus('já inscrito', 'success');
-            return;
-          }
-          // blockhash issues -> retry
-          if(em.includes('Blockhash not found') || em.toLowerCase().includes('blockhash')) {
-            pushLog('Blockhash expirado ou inválido — retryando (nova tentativa).', 'info');
-            await sleep(600 + attempt * 200); // short backoff
-            continue; // retry outer loop
-          }
-          // network / rate limit -> throw up to outer catch
-          throw sendErr;
-        }
+        log('Solicitando assinatura na carteira (Phantom)...','info');
+        const signed=await wallet.signTransaction(tx);
+        const raw=signed.serialize();
+        log('Transação assinada localmente.','info');
+        const sig=await conn.sendRawTransaction(raw,{skipPreflight:false});
+        log('Assinatura enviada: '+sig,'info');
 
-        pushLog('Assinatura enviada: ' + signature, 'info');
-
-        // 5) confirm robustly: first try confirmTransaction with blockhash object
-        pushLog('Aguardando confirmação (confirmTransaction) ...', 'info');
-        try {
-          await conn.confirmTransaction({
-            signature,
-            blockhash: latest.blockhash,
-            lastValidBlockHeight: latest.lastValidBlockHeight
-          }, 'confirmed');
-          pushLog('✅ Transação confirmada: ' + signature, 'success');
-          await refreshTxHistory();
-          await checkEligibilityAndShowButton();
-          isProcessing = false;
-          sendBtn.disabled = true;
-          setStatus('já inscrito', 'success');
-          return signature;
-        } catch (confirmErr) {
-          pushLog('confirmTransaction falhou, iniciando polling (fallback)...', 'info');
-          // fallback to polling signature status
-          const start = Date.now();
-          while(Date.now() - start < CONFIRM_POLL_TIMEOUT_MS){
-            const st = await conn.getSignatureStatuses([signature]);
-            const val = st && st.value && st.value[0];
-            if(val){
-              if(val.confirmationStatus === 'confirmed' || val.confirmationStatus === 'finalized' || val.err === null){
-                pushLog('✅ Transação confirmada via polling: ' + signature, 'success');
-                await refreshTxHistory();
-                await checkEligibilityAndShowButton();
-                isProcessing = false; sendBtn.disabled = true; setStatus('já inscrito', 'success');
-                return signature;
-              } else if(val.err){
-                pushLog('A transação retornou erro no status: ' + JSON.stringify(val.err), 'error');
-                break;
-              }
-            }
-            await sleep(CONFIRM_POLL_INTERVAL_MS);
-          }
-          pushLog('Timeout de confirmação atingido (polling). Verifique no explorer: ' + signature, 'info');
-          await refreshTxHistory();
-          isProcessing = false; sendBtn.disabled = false;
-          return signature;
-        }
-      } catch (err){
-        const em = err && err.message ? err.message : String(err);
-        // attempt to extract logs if SendTransactionError provides getLogs
-        try{
-          if(typeof err.getLogs === 'function'){
-            const detailed = await err.getLogs(conn);
-            pushLog('Detalhes de simulação: ' + JSON.stringify(detailed).slice(0,1200), 'error');
-          }
-        }catch(_){}
-        // handle user rejection
-        if(em.toLowerCase().includes('user rejected') || em.toLowerCase().includes('user rejected the request')){
-          pushLog('Envio cancelado pelo usuário.', 'error');
-          isProcessing = false; sendBtn.disabled = false;
-          return;
-        }
-        // handle RPC/network issues -> retry with exponential backoff
-        if(em.includes('429') || em.toLowerCase().includes('too many requests') || em.toLowerCase().includes('failed to fetch')){
-          const wait = 500 * attempt;
-          pushLog(`RPC rate/connection issue, retrying in ${wait}ms (attempt ${attempt})`, 'info');
-          await sleep(wait);
+        const ok=await confirmTx(sig,blockhash,lastValidBlockHeight);
+        if(ok){ log('✅ Transação confirmada: '+sig,'success'); break; }
+      }catch(e){
+        const m=e.message||e;
+        if(m.includes('Blockhash not found')||m.includes('expired')){
+          log('Blockhash expirado ou inválido — retryando (nova tentativa).','info');
           continue;
         }
-        // blockhash handled earlier; otherwise log and stop
-        pushLog('Erro ao enviar (não categorizado): ' + em, 'error');
-        isProcessing = false; sendBtn.disabled = false;
-        return;
+        if(m.includes('already been processed')){
+          log('Transação já processada segundo o RPC. Tratando como sucesso.','info');
+          break;
+        }
+        log('Erro ao enviar: '+m,'error');
       }
-    } // end attempts loop
-    pushLog('Falha em enviar após tentativas.','error');
-    isProcessing = false; sendBtn.disabled = false;
+    }
+    await refreshTxs();
+    await updateBalance();
+    await checkEligibilityAndShowButton();
+    isBusy=false;
   }
 
-  // ---------- UI / events ----------
-  connectBtn.addEventListener('click', async ()=>{
-    setStatus('conectando...', 'info');
-    pushLog('Tentando conectar à Phantom...');
+  async function confirmTx(sig,blockhash,lastValidBlockHeight){
+    log('Aguardando confirmação (confirmTransaction) ...','info');
     try{
-      if(!window.solana || !window.solana.isPhantom){
-        pushLog('Phantom Wallet não detectada. Instale a extensão.', 'error');
-        setStatus('sem carteira', 'error');
-        return;
+      const res=await conn.confirmTransaction({signature:sig,blockhash,lastValidBlockHeight},'confirmed');
+      if(res?.value?.err===null) return true;
+      log('confirmTransaction falhou, iniciando polling (fallback)...','info');
+      for(let i=0;i<10;i++){
+        await new Promise(r=>setTimeout(r,2000));
+        const st=await conn.getSignatureStatus(sig);
+        if(st?.value?.confirmationStatus==='confirmed'||st?.value?.confirmationStatus==='finalized'){
+          log('✅ Transação confirmada via polling: '+sig,'success');
+          return true;
+        }
       }
-      wallet = window.solana;
-      // explicit connect prompt
-      const resp = await wallet.connect();
-      publicKey = resp.publicKey;
-      walletAddrEl.textContent = publicKey.toBase58();
-      pushLog('Conectado: ' + publicKey.toBase58(), 'success');
-      connectBtn.style.display = 'none';
-      disconnectBtn.style.display = 'inline-block';
-      // run checks
-      await checkEligibilityAndShowButton();
     }catch(e){
-      pushLog('Erro ao conectar: ' + (e.message || e), 'error');
-      setStatus('erro conexão', 'error');
+      log('Erro na confirmação: '+(e.message||e),'error');
     }
-  });
+    return false;
+  }
 
-  disconnectBtn.addEventListener('click', async ()=>{
-    try{ if(wallet && wallet.disconnect) await wallet.disconnect(); }catch(_){}
-    wallet = null; publicKey = null;
-    walletAddrEl.textContent = '—';
-    balanceEl.textContent = '—';
-    sendBtn.style.display = 'none';
-    connectBtn.style.display = 'inline-block';
-    disconnectBtn.style.display = 'none';
-    setStatus('desconectado', 'info');
-    pushLog('Desconectado.');
-    txTableBody.innerHTML = '';
-  });
-
-  sendBtn.addEventListener('click', async ()=>{
-    // disable UI until eligibility rechecked (avoid double-click race)
-    sendBtn.disabled = true;
-    await sendAirdrop();
-  });
-
-  refreshTxBtn.addEventListener('click', async ()=>{
-    if(!publicKey) { pushLog('Conecte a carteira antes de atualizar txs.', 'error'); return; }
-    await refreshTxHistory();
-  });
-
-  clearLogsBtn.addEventListener('click', ()=>{ logs = []; logsDiv.innerHTML = ''; pushLog('Logs limpos.','info'); });
-
-  // ---------- init ----------
-  (function init(){
-    pushLog('Dashboard inicializado.', 'info');
-    setStatus('pronto', 'info');
-    // show sendBtn hidden by default
-    sendBtn.style.display = 'none';
-    // If wallet already connected (rare), set up quickly but do NOT auto-send
-    if(window.solana && window.solana.isPhantom && window.solana.isConnected){
-      wallet = window.solana;
-      try{
-        publicKey = wallet.publicKey;
-        walletAddrEl.textContent = publicKey ? publicKey.toBase58() : '—';
-        connectBtn.style.display = 'none';
-        disconnectBtn.style.display = 'inline-block';
-        checkEligibilityAndShowButton();
-      }catch(e){ console.warn(e); }
+  async function refreshTxs(){
+    if(!pk) return;
+    log('Atualizando últimas transações...','info');
+    const sigs=await conn.getSignaturesForAddress(pk,{limit:TX_LIMIT});
+    const tbody=document.querySelector('#txTable tbody');
+    tbody.innerHTML='';
+    for(const s of sigs){
+      const tr=document.createElement('tr');
+      const link=document.createElement('a');
+      link.href=`https://explorer.solana.com/tx/${s.signature}?cluster=devnet`;
+      link.textContent=s.signature.slice(0,8)+'...';
+      link.target='_blank';
+      tr.innerHTML=`<td></td><td>${s.slot}</td><td>${s.err?'out':'in'}</td><td>—</td><td>${s.err?'failed':'confirmed'}</td>`;
+      tr.children[0].appendChild(link);
+      tbody.appendChild(tr);
     }
-  })();
+  }
 
-  // Expose some functions for debugging in console (optional)
-  window._airdrop_debug = {
-    refreshTxHistory, detectRegistrationFullScan, checkEligibilityAndShowButton, sendAirdrop
-  };
+  $('connectBtn').onclick=connect;
+  $('disconnectBtn').onclick=disconnect;
+  $('sendBtn').onclick=sendAirdrop;
+  $('refreshTxBtn').onclick=refreshTxs;
+  $('clearLogs').onclick=()=>{logs=[];renderLogs();log('Logs limpos.','info');};
+
+  log('Dashboard inicializado.','info');
 
 })();
 </script>
