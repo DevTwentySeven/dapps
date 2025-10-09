@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pre-sale — Payment (devnet)</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial;margin:24px;background:#f7f7fb;color:#111}
+    .card{background:white;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(16,24,40,0.06);max-width:720px;margin:auto}
+    h1{margin-top:0}
+    label{display:block;margin-top:12px;font-weight:600}
+    input[type="number"], input[type="text"]{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef}
+    button{margin-top:14px;padding:10px 14px;border-radius:8px;border:0;background:#2563eb;color:white;font-weight:700;cursor:pointer}
+    .muted{color:#6b7280;font-size:13px}
+    .row{display:flex;gap:12px}
+    .col{flex:1}
+    .info{background:#f1f5f9;padding:10px;border-radius:8px;margin-top:12px}
+    .danger{color:#b91c1c;font-weight:700}
+    .ok{color:#065f46;font-weight:700}
+    .small{font-size:13px}
+    .controls{display:flex;gap:8px}
+    .secondary{background:#e6eefc;color:#0b4ed6;font-weight:700;border-radius:8px;padding:10px 12px;cursor:pointer;border:0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Pre-sale — Enviar SOL (devnet)</h1>
+    <p class="muted">⚠️ Se você enviar SOL manualmente para o endereço sem o memo correto, fundos podem ser perdidos ou devolvidos com desconto das taxas.</p>
+
+    <div id="walletSection">
+      <div class="controls">
+        <button id="connectBtn">Conectar carteira (Phantom)</button>
+        <button id="disconnectBtn" class="secondary" style="display:none">Desconectar</button>
+      </div>
+      <div id="walletInfo" style="display:none;margin-top:12px">
+        <div class="row">
+          <div class="col"><strong>Endereço:</strong> <span id="addr"></span></div>
+          <div class="col"><strong>SOL (wallet):</strong> <span id="bal">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div>
+      <label>Destino (recebimento)</label>
+      <input type="text" id="dest" readonly value="DBN8ymE8nRMPsXPFnAPmFDNw5rVh4A12v2quyU7LLJgt">
+
+      <div class="row" style="margin-top:8px">
+        <div class="col">
+          <label>Enviar SOL (entre 0.027 e 2.7)</label>
+          <input type="number" id="amountSOL" min="0.027" max="2.7" step="0.001" value="0.027">
+        </div>
+        <div class="col">
+          <label>Tokens estimados (pré-visual)</label>
+          <input type="text" id="estTokens" readonly value="—">
+        </div>
+      </div>
+
+      <div class="info small" id="presaleInfo">
+        <div><strong>Mint da pre-sale:</strong> Dg3YvDfwhF4T4UqNUoS9XGmd5H3SkLwWQDoHuVLCwSZ9</div>
+        <div><strong>Total pre-sale:</strong> 500000000 tokens</div>
+        <div><strong>Preço por token:</strong> 0.00000027 SOL — 270 lamports</div>
+        <div><strong>Tokens restantes:</strong> <span id="tokenBalance">—</span> (<span id="tokenPercent">—</span>%)</div>
+      </div>
+
+      <div class="info small">
+        <div><strong>Já contribuído:</strong> <span id="contributed">—</span> SOL</div>
+        <div><strong>Restante permitido:</strong> <span id="remainingAllowed">2.7</span> SOL</div>
+      </div>
+
+      <button id="sendBtn" disabled>Enviar para Pre-sale</button>
+
+      <div id="log" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <script src="./web3.iife.min.js"></script>
+  <script>
+  (async()=>{
+    const NETWORK = 'devnet';
+    const DEST_PUBKEY = new solanaWeb3.PublicKey('DBN8ymE8nRMPsXPFnAPmFDNw5rVh4A12v2quyU7LLJgt');
+    const PRESALE_MINT = new solanaWeb3.PublicKey('Dg3YvDfwhF4T4UqNUoS9XGmd5H3SkLwWQDoHuVLCwSZ9');
+    const TOTAL_PRE_SALE = 500000000n;
+    const TOKEN_PRICE_SOL = 0.00000027;
+    const TOKEN_PRICE_LAMPORTS = 270n;
+    const MIN_SOL = 0.027;
+    const MAX_SOL = 2.7;
+    const MEMO_PREFIX = 'Pre-sale 27 coin';
+
+    const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl(NETWORK), 'confirmed');
+
+    const connectBtn=document.getElementById('connectBtn');
+    const disconnectBtn=document.getElementById('disconnectBtn');
+    const walletInfo=document.getElementById('walletInfo');
+    const addrEl=document.getElementById('addr');
+    const balEl=document.getElementById('bal');
+    const amountInput=document.getElementById('amountSOL');
+    const estTokens=document.getElementById('estTokens');
+    const sendBtn=document.getElementById('sendBtn');
+    const tokenBalanceEl=document.getElementById('tokenBalance');
+    const tokenPercentEl=document.getElementById('tokenPercent');
+    const contributedEl=document.getElementById('contributed');
+    const remainingAllowedEl=document.getElementById('remainingAllowed');
+    const logEl=document.getElementById('log');
+
+    let provider=null, userPubkey=null;
+
+    const log=(msg,type)=>{
+      const p=document.createElement('div');
+      p.className=type==='err'?'danger':(type==='ok'?'ok':'');
+      p.textContent=msg;
+      logEl.prepend(p);
+    };
+
+    // Atualiza cálculo inicial
+    const updateEstTokens=()=>{
+      const sol=parseFloat(amountInput.value);
+      if(isNaN(sol)||sol<=0){estTokens.value='—';return;}
+      const lamports=BigInt(Math.floor(sol*1e9));
+      const tokens=lamports/TOKEN_PRICE_LAMPORTS;
+      estTokens.value=tokens.toString();
+    };
+
+    // Atualiza token balance da conta de presale
+    const updatePresaleInfo=async()=>{
+      try{
+        const parsed=await connection.getParsedTokenAccountsByOwner(DEST_PUBKEY,{mint:PRESALE_MINT});
+        let total=0n,decimals=0;
+        for(const acc of parsed.value){
+          const info=acc.account.data.parsed.info;
+          total+=BigInt(info.tokenAmount.amount);
+          decimals=info.tokenAmount.decimals;
+        }
+        const divisor=10n**BigInt(decimals);
+        const disp=Number(total)/Number(divisor);
+        tokenBalanceEl.textContent=disp.toLocaleString('en-US');
+        const totalRaw=total/divisor;
+        const percent=Number((totalRaw*100n)/TOTAL_PRE_SALE);
+        tokenPercentEl.textContent=percent.toFixed(1);
+      }catch(e){
+        tokenBalanceEl.textContent='erro';
+        log('Falha ao obter tokens: '+e.message,'err');
+      }
+    };
+
+    connectBtn.onclick=async()=>{
+      try{
+        if(!window.solana||!window.solana.isPhantom)throw new Error('Phantom não encontrado');
+        provider=window.solana;
+        await provider.connect();
+        userPubkey=provider.publicKey;
+        addrEl.textContent=userPubkey.toString();
+        walletInfo.style.display='block';
+        connectBtn.style.display='none';
+        disconnectBtn.style.display='inline-block';
+        const bal=await connection.getBalance(userPubkey);
+        balEl.textContent=(bal/1e9).toFixed(6)+' SOL';
+        sendBtn.disabled=false;
+        updateEstTokens();
+        await updatePresaleInfo();
+      }catch(e){log('Erro: '+e.message,'err');}
+    };
+
+    disconnectBtn.onclick=()=>{
+      if(provider&&provider.disconnect)provider.disconnect();
+      provider=null;userPubkey=null;
+      connectBtn.style.display='inline-block';
+      disconnectBtn.style.display='none';
+      walletInfo.style.display='none';
+      sendBtn.disabled=true;
+      log('Carteira desconectada.');
+    };
+
+    amountInput.oninput=updateEstTokens;
+    updateEstTokens(); // inicia já com valor calculado
+
+    sendBtn.onclick=async()=>{
+      if(!provider||!userPubkey){log('Conecte a carteira primeiro','err');return;}
+      try{
+        sendBtn.disabled=true;
+        const sol=parseFloat(amountInput.value);
+        if(isNaN(sol)||sol<MIN_SOL||sol>MAX_SOL){log('Valor fora do limite.','err');sendBtn.disabled=false;return;}
+
+        const lamportsToSend=BigInt(Math.floor(sol*1e9));
+        const memoFull=`${MEMO_PREFIX} ${lamportsToSend.toString()}`;
+
+        const transferIx=solanaWeb3.SystemProgram.transfer({
+          fromPubkey:userPubkey,toPubkey:DEST_PUBKEY,lamports:lamportsToSend
+        });
+        const memoProgramId=new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+        const memoData=new TextEncoder().encode(memoFull);
+        const memoIx=new solanaWeb3.TransactionInstruction({keys:[],programId:memoProgramId,data:memoData});
+        const tx=new solanaWeb3.Transaction().add(transferIx,memoIx);
+        tx.feePayer=userPubkey;
+        tx.recentBlockhash=(await connection.getLatestBlockhash('finalized')).blockhash;
+
+        log(`Enviando ${sol} SOL (≈ ${lamportsToSend} lamports) com memo "${memoFull}"...`);
+        const signed=await provider.signTransaction(tx);
+        const txid=await connection.sendRawTransaction(signed.serialize());
+        log('Transação enviada: '+txid,'ok');
+        await connection.confirmTransaction(txid,'confirmed');
+        log('✅ Transação confirmada.','ok');
+        await updatePresaleInfo();
+      }catch(e){
+        log('Erro ao enviar: '+(e.message||e),'err');
+      }finally{
+        sendBtn.disabled=false;
+      }
+    };
+
+    await updatePresaleInfo();
+    log('⚠️ Use sempre este formulário — envio manual sem memo pode causar perda de fundos.','err');
+  })();
+  </script>
+</body>
+</html>
